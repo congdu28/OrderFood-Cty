@@ -47,9 +47,9 @@
           </div>
           <div class="topbar-actions">
             <button class="icon-button" id="exportBtn" title="Xuất dữ liệu">⇩</button>
-            <button class="profile-button" type="button">
-              <span class="avatar avatar-coral">A</span>
-              <span class="profile-copy"><strong>Admin nhóm</strong><small>Người đặt</small></span>
+            <button class="profile-button" id="profileButton" type="button" title="Quản lý nickname hoặc tài khoản">
+              <span class="avatar avatar-coral" id="profileAvatar">?</span>
+              <span class="profile-copy"><strong id="profileName">Chọn nickname</strong><small id="profileStatus">Chưa thiết lập</small></span>
             </button>
           </div>
         </header>
@@ -111,15 +111,15 @@
                 <div><p class="eyebrow">NGƯỜI ĐANG ĐẶT</p><h3>Chọn món của bạn</h3></div>
                 <span class="badge neutral" id="memberCountBadge"></span>
               </div>
-              <label class="field-label" for="memberPicker">Nickname đang dùng trên trình duyệt này</label>
+              <label class="field-label" for="memberPicker">Tài khoản đang dùng</label>
               <div class="select-wrap"><select id="memberPicker"></select></div>
               <div class="join-nickname">
-                <label class="field-label" for="newMemberName">Tham gia phiên với nickname mới</label>
+                <label class="field-label" for="newMemberName">Tham gia bằng nickname của bạn</label>
                 <div class="inline-add">
-                  <input id="newMemberName" type="text" placeholder="Ví dụ: Mèo đói" maxlength="30" />
+                  <input id="newMemberName" type="text" placeholder="Tạo nickname ở bước đầu" maxlength="30" readonly />
                   <button class="join-button" id="addMemberBtn" type="button">Tham gia</button>
                 </div>
-                <p>Nickname chỉ dùng trong phiên đặt đồ này.</p>
+                <p>Nickname được dùng lại cho các phiên sau. Bạn chỉ cần bấm Tham gia một lần trong mỗi phiên.</p>
               </div>
               <div class="member-list" id="memberList"></div>
             </article>
@@ -225,6 +225,25 @@
       </main>
     </div>
 
+    <div class="modal-backdrop" id="profileModal" hidden aria-hidden="true">
+      <section class="modal-card profile-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+        <p class="eyebrow">HỒ SƠ CỦA BẠN</p>
+        <h2 id="profileModalTitle">Bạn muốn được gọi là gì?</h2>
+        <p class="modal-intro">Nickname sẽ tự điền khi bạn tham gia các phiên đặt đồ sau này.</p>
+        <form id="profileForm">
+          <label>Nickname<input id="profileNicknameInput" type="text" placeholder="Ví dụ: Mèo đói" required maxlength="30" autocomplete="nickname" /></label>
+          <p class="profile-helper" id="profileAuthHint">Dùng nickname trên thiết bị này, hoặc đăng nhập Google để dùng lại trên mọi thiết bị.</p>
+          <div class="modal-actions">
+            <button class="secondary-button" id="profileCancelBtn" type="button" hidden>Hủy</button>
+            <button class="primary-button modal-submit" type="submit">Lưu nickname →</button>
+          </div>
+        </form>
+        <div class="profile-divider"><span>hoặc</span></div>
+        <button class="google-signin-button" id="googleSignInBtn" type="button"><span>G</span> Tiếp tục với Google</button>
+        <button class="text-button profile-signout" id="profileSignOutBtn" type="button" hidden>Đăng xuất Google</button>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="sessionModal" hidden aria-hidden="true">
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="newSessionTitle">
         <button class="modal-close" id="closeModalBtn" type="button" aria-label="Đóng popup tạo phiên">×</button>
@@ -235,7 +254,7 @@
           <label>Tên phiên<input id="sessionTitleInput" type="text" placeholder="Ví dụ: Ăn trưa thứ Sáu" required maxlength="80" /></label>
           <label>Quán ăn<input id="restaurantInput" type="text" placeholder="Ví dụ: Cơm gà Bà Buội" required maxlength="80" /></label>
           <label>Hạn chốt món<input id="deadlineInput" type="datetime-local" required /></label>
-          <label>Nickname của bạn trong phiên<input id="initialMembersInput" type="text" placeholder="Ví dụ: An" required maxlength="30" /></label>
+          <label>Nickname người tạo<input id="initialMembersInput" type="text" placeholder="Tạo nickname ở bước đầu" required maxlength="30" readonly /></label>
           <div class="menu-builder">
             <div class="menu-builder-heading"><span>Danh sách món &amp; giá</span><small>Người tham gia sẽ chọn theo giá này</small></div>
             <div id="createMenuRows"></div>

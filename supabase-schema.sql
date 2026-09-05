@@ -28,6 +28,36 @@ create policy "test users can update food orders"
 create policy "test users can delete food orders"
   on public.food_order_sessions for delete to anon, authenticated using (true);
 
+-- Hồ sơ người dùng: chỉ người đã đăng nhập mới có thể đọc/ghi profile của chính mình.
+-- Nickname không đăng nhập Google vẫn được lưu ở trình duyệt; Google sẽ lưu profile này lâu dài trên Supabase.
+create table if not exists public.food_order_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  nickname text not null check (char_length(trim(nickname)) between 1 and 30),
+  avatar_color text not null default '#628d76',
+  avatar_url text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.food_order_profiles enable row level security;
+
+grant select, insert, update on public.food_order_profiles to authenticated;
+
+drop policy if exists "users can read own food profile" on public.food_order_profiles;
+drop policy if exists "users can create own food profile" on public.food_order_profiles;
+drop policy if exists "users can update own food profile" on public.food_order_profiles;
+
+create policy "users can read own food profile"
+  on public.food_order_profiles for select to authenticated
+  using (auth.uid() is not null and auth.uid() = id);
+create policy "users can create own food profile"
+  on public.food_order_profiles for insert to authenticated
+  with check (auth.uid() is not null and auth.uid() = id);
+create policy "users can update own food profile"
+  on public.food_order_profiles for update to authenticated
+  using (auth.uid() is not null and auth.uid() = id)
+  with check (auth.uid() is not null and auth.uid() = id);
+
 -- Bật Realtime cho thay đổi phiên đặt đồ. Khối DO giúp chạy lại SQL an toàn.
 do $$
 begin

@@ -1,5 +1,6 @@
 const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
+const PROFILE_TABLE = "food_order_profiles";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
 
 const $ = (selector) => document.querySelector(selector);
@@ -61,10 +62,23 @@ const dom = {
   initialMembersInput: $("#initialMembersInput"),
   createMenuRows: $("#createMenuRows"),
   addCreateMenuBtn: $("#addCreateMenuBtn"),
+  profileButton: $("#profileButton"),
+  profileAvatar: $("#profileAvatar"),
+  profileName: $("#profileName"),
+  profileStatus: $("#profileStatus"),
+  profileModal: $("#profileModal"),
+  profileForm: $("#profileForm"),
+  profileNicknameInput: $("#profileNicknameInput"),
+  profileAuthHint: $("#profileAuthHint"),
+  profileCancelBtn: $("#profileCancelBtn"),
+  googleSignInBtn: $("#googleSignInBtn"),
+  profileSignOutBtn: $("#profileSignOutBtn"),
   toast: $("#toast")
 };
 
 let supabaseClient = null;
+let authenticatedUser = null;
+let profileModalRequired = false;
 let remoteSessionIds = new Set();
 let remoteSyncTimer = null;
 let appState = loadState();
@@ -73,6 +87,27 @@ let toastTimer;
 
 function id(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function colorForIdentity(identity = "") {
+  const hash = [...String(identity)].reduce((value, character) => ((value << 5) - value) + character.charCodeAt(0), 0);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function normalizeProfile(profile) {
+  if (!profile?.id || !profile?.nickname?.trim()) return null;
+  return {
+    id: String(profile.id),
+    nickname: profile.nickname.trim().slice(0, 30),
+    color: profile.color || colorForIdentity(profile.id),
+    provider: profile.provider || "nickname",
+    avatarUrl: profile.avatarUrl || "",
+    updatedAt: profile.updatedAt || new Date().toISOString()
+  };
+}
+
+function currentProfile() {
+  return normalizeProfile(appState.profile);
 }
 
 function localDateTimeValue(date) {
@@ -89,11 +124,15 @@ function defaultMenu() {
   ];
 }
 
-function makeMember(name, index) {
+function makeMember(profile, index) {
+  const memberProfile = typeof profile === "string"
+    ? { id: id("member"), nickname: profile, color: AVATAR_COLORS[index % AVATAR_COLORS.length] }
+    : profile;
   return {
-    id: id("member"),
-    name: name.trim(),
-    color: AVATAR_COLORS[index % AVATAR_COLORS.length],
+    id: memberProfile.id,
+    profileId: memberProfile.id?.startsWith("profile_") || /^[0-9a-f-]{36}$/i.test(memberProfile.id) ? memberProfile.id : null,
+    name: memberProfile.nickname.trim(),
+    color: memberProfile.color || AVATAR_COLORS[index % AVATAR_COLORS.length],
     paid: false,
     paidAt: null,
     selections: []
@@ -106,11 +145,13 @@ function normalizeSession(session) {
   session.members = Array.isArray(session.members) ? session.members : [];
   session.members.forEach((member, index) => {
     member.color ||= AVATAR_COLORS[index % AVATAR_COLORS.length];
+    member.profileId ||= null;
     member.selections = Array.isArray(member.selections) ? member.selections : [];
     member.paid = Boolean(member.paid);
   });
   session.creatorMemberId ||= session.members[0]?.id || null;
   const legacyCreator = session.members.find((member) => member.id === session.creatorMemberId);
+  session.creatorProfileId ||= legacyCreator?.profileId || null;
   session.creatorName ||= legacyCreator?.name || "Người tạo phiên";
   session.creatorColor ||= legacyCreator?.color || AVATAR_COLORS[0];
   session.payment ||= { bankName: "", accountNumber: "", accountOwner: "", transferNote: "", qrImage: "" };
@@ -156,14 +197,15 @@ function loadState() {
       return {
         sessions,
         activeSessionId: saved.activeSessionId || sessions.find((session) => !session.archived)?.id || null,
-        selectedMemberId: saved.selectedMemberId || null
+        selectedMemberId: saved.selectedMemberId || null,
+        profile: normalizeProfile(saved.profile)
       };
     }
   } catch (error) {
     console.warn("Không thể đọc dữ liệu cũ", error);
   }
 
-  return { sessions: [], activeSessionId: null, selectedMemberId: null };
+  return { sessions: [], activeSessionId: null, selectedMemberId: null, profile: null };
 }
 
 function saveState() {
@@ -189,6 +231,151 @@ function getSupabaseConfig() {
   if (!config?.url || !config?.publishableKey) return null;
   if (!window.supabase?.createClient) return null;
   return config;
+}
+
+function suggestedNickname(user = authenticatedUser) {
+  const metadata = user?.user_metadata || {};
+  const candidate = metadata.full_name || metadata.name || user?.email?.split("@")[0] || "";
+  return String(candidate).trim().slice(0, 30);
+}
+
+function renderProfileControl() {
+  const profile = currentProfile();
+  dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
+  dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
+  dom.profileName.textContent = profile?.nickname || "Chọn nickname";
+  dom.profileStatus.textContent = authenticatedUser ? "Google · đã đồng bộ" : profile ? "Nickname trên thiết bị này" : "Chưa thiết lập";
+}
+
+function openProfileModal(required = !currentProfile()) {
+  profileModalRequired = required;
+  const profile = currentProfile();
+  dom.profileNicknameInput.value = profile?.nickname || suggestedNickname();
+  dom.profileAuthHint.textContent = authenticatedUser
+    ? "Tài khoản Google đã nhận diện. Hãy chọn nickname để lưu lâu dài vào Supabase."
+    : "Dùng nickname trên thiết bị này, hoặc đăng nhập Google để dùng lại trên mọi thiết bị.";
+  dom.profileCancelBtn.hidden = !profile || required;
+  dom.googleSignInBtn.disabled = !supabaseClient;
+  dom.googleSignInBtn.title = supabaseClient ? "Đăng nhập bằng tài khoản Google" : "Hãy kết nối Supabase trước để dùng Google";
+  dom.profileSignOutBtn.hidden = !authenticatedUser;
+  dom.profileModal.hidden = false;
+  dom.profileModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => dom.profileNicknameInput.focus(), 20);
+}
+
+function closeProfileModal() {
+  if (profileModalRequired && !currentProfile()) return;
+  dom.profileModal.hidden = true;
+  dom.profileModal.setAttribute("aria-hidden", "true");
+  profileModalRequired = false;
+}
+
+async function syncProfileToSupabase(profile) {
+  if (!supabaseClient || !authenticatedUser) return;
+  const { error } = await supabaseClient.from(PROFILE_TABLE).upsert({
+    id: authenticatedUser.id,
+    nickname: profile.nickname,
+    avatar_color: profile.color,
+    avatar_url: authenticatedUser.user_metadata?.avatar_url || "",
+    updated_at: new Date().toISOString()
+  }, { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function restoreAuthenticatedProfile(user) {
+  if (!user || !supabaseClient) return;
+  authenticatedUser = user;
+  const { data, error } = await supabaseClient
+    .from(PROFILE_TABLE)
+    .select("id, nickname, avatar_color, avatar_url, updated_at")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Không thể tải hồ sơ Supabase", error);
+    renderProfileControl();
+    return;
+  }
+
+  if (data) {
+    appState.profile = normalizeProfile({
+      id: data.id,
+      nickname: data.nickname,
+      color: data.avatar_color,
+      avatarUrl: data.avatar_url,
+      provider: "google",
+      updatedAt: data.updated_at
+    });
+    appState.selectedMemberId = appState.profile.id;
+    saveState();
+    renderAll();
+    closeProfileModal();
+    return;
+  }
+
+  const localProfile = currentProfile();
+  appState.profile = normalizeProfile({
+    id: user.id,
+    nickname: localProfile?.nickname || suggestedNickname(user),
+    color: localProfile?.color || colorForIdentity(user.id),
+    avatarUrl: user.user_metadata?.avatar_url || "",
+    provider: "google"
+  });
+  appState.selectedMemberId = user.id;
+  saveState();
+  renderAll();
+  openProfileModal(true);
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const nickname = dom.profileNicknameInput.value.trim();
+  if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
+  const previous = currentProfile();
+  const profile = normalizeProfile({
+    id: authenticatedUser?.id || previous?.id || id("profile"),
+    nickname,
+    color: previous?.color || colorForIdentity(authenticatedUser?.id || nickname),
+    avatarUrl: authenticatedUser?.user_metadata?.avatar_url || previous?.avatarUrl || "",
+    provider: authenticatedUser ? "google" : "nickname"
+  });
+
+  try {
+    await syncProfileToSupabase(profile);
+  } catch (error) {
+    console.error("Không thể lưu hồ sơ Supabase", error);
+    return showToast("Chưa lưu được profile Google. Hãy chạy lại Supabase schema rồi thử lại.");
+  }
+
+  appState.profile = profile;
+  appState.selectedMemberId = profile.id;
+  saveState();
+  renderAll();
+  closeProfileModal();
+  showToast(authenticatedUser ? "Đã lưu nickname vào tài khoản Google." : "Đã lưu nickname trên thiết bị này.");
+}
+
+async function signInWithGoogle() {
+  if (!supabaseClient) return showToast("Hãy kết nối Supabase trước khi đăng nhập Google.");
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  if (error) {
+    console.error("Không thể bắt đầu đăng nhập Google", error);
+    showToast("Không thể mở đăng nhập Google. Hãy kiểm tra Google provider trong Supabase.");
+  }
+}
+
+async function signOutProfile() {
+  if (supabaseClient && authenticatedUser) {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) return showToast("Không thể đăng xuất Google. Hãy thử lại.");
+  }
+  authenticatedUser = null;
+  appState.profile = null;
+  appState.selectedMemberId = null;
+  saveState();
+  renderAll();
+  openProfileModal(true);
 }
 
 function queueRemoteSync() {
@@ -241,10 +428,7 @@ async function loadRemoteSessions() {
     appState.sessions = data.map((row) => normalizeSession({ ...row.payload, id: row.id }));
     const activeExists = appState.sessions.some((session) => session.id === appState.activeSessionId && !session.archived);
     if (!activeExists) appState.activeSessionId = appState.sessions.find((session) => !session.archived)?.id || null;
-    const active = activeSession();
-    if (active && active.creatorMemberId !== appState.selectedMemberId && !active.members.some((member) => member.id === appState.selectedMemberId)) {
-      appState.selectedMemberId = active.creatorMemberId || null;
-    }
+    appState.selectedMemberId = currentProfile()?.id || null;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
   } else if (appState.sessions.length) {
     queueRemoteSync();
@@ -273,20 +457,34 @@ async function initializeSupabase() {
   const config = getSupabaseConfig();
   if (!config) {
     setConnectionNote("Dữ liệu trên trình duyệt · chưa kết nối Supabase");
+    if (!currentProfile()) openProfileModal(true);
     return;
   }
   try {
     setConnectionNote("Đang kết nối Supabase...");
     supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+        restoreAuthenticatedProfile(session.user).catch((error) => console.warn("Không thể khôi phục profile", error));
+      }
+      if (event === "SIGNED_OUT") {
+        authenticatedUser = null;
+        renderProfileControl();
+      }
+    });
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) await restoreAuthenticatedProfile(user);
     await loadRemoteSessions();
     subscribeToRemoteSessions();
     renderAll();
     setConnectionNote("Supabase · đang đồng bộ", true);
+    if (!currentProfile()) openProfileModal(true);
   } catch (error) {
     console.error("Không thể khởi tạo Supabase", error);
     supabaseClient = null;
     setConnectionNote("Không kết nối được Supabase");
     showToast("Supabase chưa sẵn sàng. Hãy chạy schema SQL và kiểm tra lại cấu hình.");
+    if (!currentProfile()) openProfileModal(true);
   }
 }
 
@@ -301,9 +499,17 @@ function activeSession() {
 }
 
 function selectedMember(session = activeSession()) {
-  if (!session) return null;
-  if (!appState.selectedMemberId) appState.selectedMemberId = session.creatorMemberId || null;
-  return session.members.find((item) => item.id === appState.selectedMemberId) || null;
+  const profile = currentProfile();
+  if (!session || !profile) return null;
+  let member = session.members.find((item) => item.profileId === profile.id || item.id === profile.id);
+  if (!member) {
+    const matchingLegacyMember = session.members.find((item) => !item.profileId && item.name.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN"));
+    if (matchingLegacyMember) {
+      matchingLegacyMember.profileId = profile.id;
+      member = matchingLegacyMember;
+    }
+  }
+  return member || null;
 }
 
 function escapeHtml(value = "") {
@@ -381,7 +587,11 @@ function isLocked(session) {
 }
 
 function isSessionCreator(session) {
-  return Boolean(session && session.creatorMemberId === appState.selectedMemberId);
+  const profile = currentProfile();
+  if (!session || !profile) return false;
+  return session.creatorProfileId === profile.id
+    || session.creatorMemberId === profile.id
+    || (!session.creatorProfileId && session.creatorName?.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN"));
 }
 
 function showToast(message) {
@@ -403,6 +613,7 @@ function setView(view) {
 }
 
 function renderAll() {
+  renderProfileControl();
   renderDashboard();
   renderSession();
   renderHistory();
@@ -487,9 +698,11 @@ function renderSession() {
 
   dom.statusNotice.classList.toggle("show", true);
   if (session.status === "open") {
-    dom.statusNotice.innerHTML = `Phiên đang mở — nhập nickname rồi bấm <strong>“Tham gia”</strong> để cùng chọn món. Tổng tiền tự cập nhật theo số người tham gia.`;
+    dom.statusNotice.innerHTML = member
+      ? `Bạn đang tham gia bằng <strong>${escapeHtml(currentProfile()?.nickname || "nickname")}</strong>. Tổng tiền tự cập nhật theo số người đã tham gia.`
+      : `Phiên đang mở — bấm <strong>“Tham gia”</strong> để cùng chọn món bằng nickname đã lưu. Tổng tiền tự cập nhật theo số người tham gia.`;
   } else if (session.status === "locked") {
-    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Mỗi thành viên chọn tên mình ở cột trái, chuyển khoản xong rồi tick “Đã chuyển”.`;
+    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.`;
   } else {
     dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.`;
   }
@@ -501,18 +714,18 @@ function renderSession() {
   dom.deleteSessionBtn.disabled = !isCreator;
   dom.lockSessionBtn.textContent = session.status === "open" ? "Chốt & gửi tổng tiền" : session.status === "locked" ? "Đã chốt tổng tiền" : "Đã hoàn tất";
 
-  dom.memberPicker.disabled = false;
-  dom.newMemberName.disabled = locked;
-  $("#addMemberBtn").disabled = locked;
-  dom.memberPicker.innerHTML = [
-    `<option value="${session.creatorMemberId}" ${session.creatorMemberId === appState.selectedMemberId ? "selected" : ""}>${escapeHtml(session.creatorName)} (người tạo)</option>`,
-    ...session.members.filter((item) => item.id !== session.creatorMemberId).map((item) => `<option value="${item.id}" ${item.id === appState.selectedMemberId ? "selected" : ""}>${escapeHtml(item.name)}</option>`)
-  ].join("");
-  const creatorIsParticipant = session.members.some((item) => item.id === session.creatorMemberId);
-  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${session.creatorMemberId === appState.selectedMemberId ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý món, giá và thanh toán</small></span></div>`;
+  const profile = currentProfile();
+  dom.memberPicker.disabled = true;
+  dom.memberPicker.innerHTML = `<option>${escapeHtml(profile?.nickname || "Chưa có nickname")}${member ? " · đã tham gia phiên" : " · chưa tham gia"}</option>`;
+  dom.newMemberName.value = profile?.nickname || "";
+  dom.newMemberName.disabled = !profile || locked || Boolean(member);
+  $("#addMemberBtn").disabled = !profile || locked || Boolean(member);
+  $("#addMemberBtn").textContent = member ? "Đã tham gia" : "Tham gia";
+  const creatorIsParticipant = session.members.some((item) => item.profileId === session.creatorProfileId || item.id === session.creatorMemberId);
+  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý món, giá và thanh toán</small></span></div>`;
   const participantRows = session.members.map((item) => {
     const count = item.selections.reduce((total, selection) => total + selection.quantity, 0);
-    return `<div class="member-row ${item.id === appState.selectedMemberId ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${item.id === session.creatorMemberId ? '<small>(người tạo)</small>' : ""}</span><small>${count ? `${count} phần đã chọn` : "Chưa chọn món"}</small></span>${!locked && isCreator && session.members.length > 1 ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</div>`;
+    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${item.id === session.creatorMemberId ? '<small>(người tạo)</small>' : ""}</span><small>${count ? `${count} phần đã chọn` : "Chưa chọn món"}</small></span>${!locked && isCreator && session.members.length > 1 && item.id !== member?.id ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</div>`;
   }).join("");
   dom.memberList.innerHTML = creatorRow + participantRows;
 
@@ -522,7 +735,7 @@ function renderSession() {
     return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${escapeHtml(menuItem.note || "")} · ${money(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
   }).join("");
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
-  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Nhập nickname rồi bấm “Tham gia” để chọn món."}</p>`;
+  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Bấm “Tham gia” để chọn món bằng nickname đã lưu."}</p>`;
 
   $$('input[name="splitMethod"]').forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked || !isCreator; });
   dom.equalFields.classList.toggle("visible", session.splitMethod === "equal");
@@ -678,9 +891,14 @@ function collectDraftMenu() {
 }
 
 function openNewSessionModal() {
+  const profile = currentProfile();
+  if (!profile) {
+    openProfileModal(true);
+    return;
+  }
   dom.sessionTitleInput.value = "";
   dom.restaurantInput.value = "";
-  dom.initialMembersInput.value = "";
+  dom.initialMembersInput.value = profile.nickname;
   dom.deadlineInput.value = localDateTimeValue(new Date(Date.now() + 1000 * 60 * 90));
   renderCreateMenuRows([{ name: "", price: undefined }]);
   dom.sessionModal.hidden = false;
@@ -695,13 +913,12 @@ function closeNewSessionModal() {
 
 function createSession(event) {
   event.preventDefault();
-  const nickname = dom.initialMembersInput.value.trim();
-  if (!nickname) return showToast("Hãy đặt nickname cho phiên này.");
+  const profile = currentProfile();
+  if (!profile) return openProfileModal(true);
   const deadline = new Date(dom.deadlineInput.value);
   if (Number.isNaN(deadline.getTime()) || deadline <= new Date()) return showToast("Hạn chốt món phải ở thời điểm sau hiện tại.");
   const draftMenu = collectDraftMenu();
   if (draftMenu.error) return showToast(draftMenu.error);
-  const members = [makeMember(nickname, 0)];
   const session = {
     id: id("session"),
     title: dom.sessionTitleInput.value.trim(),
@@ -714,37 +931,36 @@ function createSession(event) {
     deliveryFee: 0,
     discount: 0,
     menu: draftMenu.menu,
-    members,
-    creatorMemberId: members[0].id,
+    members: [],
+    creatorMemberId: profile.id,
+    creatorProfileId: profile.id,
+    creatorName: profile.nickname,
+    creatorColor: profile.color,
     payment: { bankName: "", accountNumber: "", accountOwner: "", transferNote: "", qrImage: "" }
   };
   appState.sessions.unshift(session);
   appState.activeSessionId = session.id;
-  appState.selectedMemberId = members[0].id;
+  appState.selectedMemberId = profile.id;
   saveState();
   closeNewSessionModal();
   renderAll();
   setView("session");
-  showToast("Đã tạo phiên mới. Mời mọi người chọn món!");
+  showToast("Đã tạo phiên mới. Bạn và mọi người có thể bấm Tham gia để chọn món!");
 }
 
 function joinWithNickname() {
   const session = activeSession();
-  const nickname = dom.newMemberName.value.trim();
+  const profile = currentProfile();
   if (!session) return;
-  if (!nickname) return showToast("Nhập nickname trước nhé.");
-  if (isLocked(session)) return showToast("Phiên đã chốt nên không thể tạo nickname mới.");
-  if (session.members.some((member) => member.name.toLocaleLowerCase("vi-VN") === nickname.toLocaleLowerCase("vi-VN"))) return showToast("Nickname này đã có trong phiên. Hãy chọn tên khác.");
-  const isCreatorJoining = nickname.toLocaleLowerCase("vi-VN") === session.creatorName.toLocaleLowerCase("vi-VN");
-  const newMember = isCreatorJoining
-    ? { id: session.creatorMemberId, name: session.creatorName, color: session.creatorColor, paid: false, paidAt: null, selections: [] }
-    : makeMember(nickname, session.members.length + 1);
+  if (!profile) return openProfileModal(true);
+  if (isLocked(session)) return showToast("Phiên đã chốt nên không thể tham gia thêm.");
+  if (selectedMember(session)) return showToast("Bạn đã tham gia phiên này rồi.");
+  const newMember = makeMember(profile, session.members.length);
   session.members.push(newMember);
   appState.selectedMemberId = newMember.id;
-  dom.newMemberName.value = "";
   saveState();
   renderAll();
-  showToast(`Đã tham gia phiên với nickname ${nickname}.`);
+  showToast(`Đã tham gia phiên với nickname ${profile.nickname}.`);
 }
 
 function archiveActiveSession() {
@@ -779,9 +995,7 @@ function restoreSession(sessionId) {
   session.archived = false;
   session.archivedAt = null;
   appState.activeSessionId = session.id;
-  appState.selectedMemberId = session.members.some((member) => member.id === appState.selectedMemberId)
-    ? appState.selectedMemberId
-    : session.creatorMemberId;
+  appState.selectedMemberId = currentProfile()?.id || null;
   saveState();
   renderAll();
   setView("session");
@@ -798,8 +1012,14 @@ function bindEvents() {
   $("#closeModalBtn").addEventListener("click", closeNewSessionModal);
   $("#cancelModalBtn").addEventListener("click", closeNewSessionModal);
   dom.sessionModal.addEventListener("click", (event) => { if (event.target === dom.sessionModal) closeNewSessionModal(); });
+  dom.profileButton.addEventListener("click", () => openProfileModal(false));
+  dom.profileForm.addEventListener("submit", saveProfile);
+  dom.profileCancelBtn.addEventListener("click", closeProfileModal);
+  dom.googleSignInBtn.addEventListener("click", signInWithGoogle);
+  dom.profileSignOutBtn.addEventListener("click", signOutProfile);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dom.sessionModal.hidden) closeNewSessionModal();
+    if (event.key === "Escape" && !dom.profileModal.hidden) closeProfileModal();
   });
   dom.newSessionForm.addEventListener("submit", createSession);
   dom.addCreateMenuBtn.addEventListener("click", () => {
@@ -813,14 +1033,10 @@ function bindEvents() {
 
   dom.sessionSwitcher.addEventListener("change", () => {
     appState.activeSessionId = dom.sessionSwitcher.value;
-    appState.selectedMemberId = activeSession().creatorMemberId || null;
+    appState.selectedMemberId = currentProfile()?.id || null;
     saveState(); renderAll();
   });
-  dom.memberPicker.addEventListener("change", () => { appState.selectedMemberId = dom.memberPicker.value; saveState(); renderAll(); });
   $("#addMemberBtn").addEventListener("click", joinWithNickname);
-  dom.newMemberName.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") { event.preventDefault(); joinWithNickname(); }
-  });
   dom.memberList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove-member]");
     if (!button) return;
@@ -830,7 +1046,7 @@ function bindEvents() {
     if (!member || isLocked(session) || !isSessionCreator(session)) return;
     if (!window.confirm(`Xóa ${member.name} khỏi phiên này?`)) return;
     session.members = session.members.filter((item) => item.id !== memberId);
-    appState.selectedMemberId = session.members[0]?.id || null;
+    appState.selectedMemberId = currentProfile()?.id || null;
     saveState(); renderAll();
   });
 
@@ -931,7 +1147,8 @@ function bindEvents() {
     if (!checkbox) return;
     const session = activeSession();
     const member = session.members.find((item) => item.id === checkbox.dataset.paymentMember);
-    if (!member || !isLocked(session) || member.id !== selectedMember(session).id) return;
+    const currentMember = selectedMember(session);
+    if (!member || !currentMember || !isLocked(session) || member.id !== currentMember.id) return;
     member.paid = checkbox.checked;
     member.paidAt = checkbox.checked ? new Date().toISOString() : null;
     saveState(); renderAll();
