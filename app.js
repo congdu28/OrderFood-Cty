@@ -826,7 +826,7 @@ function renderSession() {
   dom.joinOrderBtn.textContent = !profile ? "Tạo nickname để đặt món" : isOrderConfirmed ? "✓ Đã xác nhận món" : selectedCount ? `✓ Xác nhận ${selectedCount} phần đã chọn` : "✓ Xác nhận món đã chọn";
   dom.orderConfirmHint.textContent = !profile ? "Hãy tạo nickname trước." : isOrderConfirmed ? "Món của bạn đã được ghi nhận. Nếu chỉnh món, hãy xác nhận lại." : selectedCount ? "Kiểm tra món rồi bấm xác nhận để người tạo dễ chốt đơn." : "Tick ít nhất một món; nickname sẽ tự được thêm vào phiên.";
   const creatorIsParticipant = session.members.some((item) => item.profileId === session.creatorProfileId || item.id === session.creatorMemberId);
-  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small><em class="role-badge">ADMIN</em></span><small>Quản lý toàn bộ phiên</small></span></div>`;
+  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý toàn bộ phiên</small></span></div>`;
   const participantRows = session.members.map((item) => {
     const count = item.selections.reduce((total, selection) => total + selection.quantity, 0);
     const isCreatorMember = item.id === session.creatorMemberId || item.profileId === session.creatorProfileId;
@@ -834,7 +834,7 @@ function renderSession() {
     const canToggleAdmin = canManage && !isCreatorMember;
     const canRemoveMember = !locked && canManage && session.members.length > 1 && item.id !== member?.id;
     const actions = canToggleAdmin || canRemoveMember ? `<span class="member-actions">${canToggleAdmin ? `<button class="admin-toggle" data-toggle-admin="${item.id}" title="${hasAdminRole ? "Gỡ quyền admin" : "Đặt làm admin"}">${hasAdminRole ? "Gỡ admin" : "Đặt admin"}</button>` : ""}${canRemoveMember ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</span>` : "";
-    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${isCreatorMember ? '<small>(người tạo)</small>' : ""}${hasAdminRole ? '<em class="role-badge">ADMIN</em>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${actions}</div>`;
+    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${isCreatorMember ? '<small>(người tạo)</small>' : ""}${hasAdminRole && !isCreatorMember ? '<em class="role-badge">QUẢN TRỊ PHIÊN</em>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${actions}</div>`;
   }).join("");
   dom.memberList.innerHTML = creatorRow + participantRows;
 

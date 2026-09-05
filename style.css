@@ -429,3 +429,12 @@ h3 { font-size: 19px; }
   .sidebar.mobile-open .admin-label { display: block; }
   .sidebar.mobile-open .admin-status { display: block; }
 }
+
+/* Tăng nhẹ độ rõ cho các nội dung dạng span/small trong vùng thao tác */
+.order-confirm-bar span { font-size: 13px; }
+.summary-amounts span { font-size: 12px; }
+.mini-history-row strong { font-size: 13px; }
+.mini-history-row small { font-size: 12px; }
+.order-breakdown-heading span, .order-detail-line, .order-detail-line small, .order-detail-line b { font-size: 11px; }
+.history-group-session small, .history-status-heading small { font-size: 12px; }
+.role-badge { font-size: 10px; }
