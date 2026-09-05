@@ -833,7 +833,7 @@ function renderSession() {
     const hasAdminRole = memberHasAdminRole(session, item);
     const canToggleAdmin = canManage && !isCreatorMember;
     const canRemoveMember = !locked && canManage && session.members.length > 1 && item.id !== member?.id;
-    const actions = canToggleAdmin || canRemoveMember ? `<span class="member-actions">${canToggleAdmin ? `<button class="admin-toggle" data-toggle-admin="${item.id}" title="${hasAdminRole ? "Gỡ quyền admin" : "Đặt làm admin"}">${hasAdminRole ? "Gỡ admin" : "Đặt admin"}</button>` : ""}${canRemoveMember ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</span>` : "";
+    const actions = canToggleAdmin || canRemoveMember ? `<span class="member-actions">${canToggleAdmin ? `<button class="admin-toggle" data-toggle-admin="${item.id}" title="${hasAdminRole ? "Gỡ chủ phiên" : "Đặt chủ phiên"}">${hasAdminRole ? "Gỡ chủ phiên" : "Đặt chủ phiên"}</button>` : ""}${canRemoveMember ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</span>` : "";
     return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${isCreatorMember ? '<small>(người tạo)</small>' : ""}${hasAdminRole && !isCreatorMember ? '<em class="role-badge">QUẢN TRỊ PHIÊN</em>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${actions}</div>`;
   }).join("");
   dom.memberList.innerHTML = creatorRow + participantRows;
