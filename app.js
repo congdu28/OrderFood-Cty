@@ -55,6 +55,7 @@ const dom = {
   paymentMembers: $("#paymentMembers"),
   paidSummary: $("#paidSummary"),
   historyFilter: $("#historyFilter"),
+  historyStatusGroups: $("#historyStatusGroups"),
   historyStats: $("#historyStats"),
   historyTable: $("#historyTable"),
   sessionModal: $("#sessionModal"),
@@ -142,6 +143,7 @@ function makeMember(profile, index) {
 
 function normalizeSession(session) {
   session.archived = Boolean(session.archived);
+  session.deleted = Boolean(session.deleted);
   session.menu = Array.isArray(session.menu) ? session.menu : defaultMenu();
   session.members = Array.isArray(session.members) ? session.members : [];
   session.members.forEach((member, index) => {
@@ -156,6 +158,8 @@ function normalizeSession(session) {
   session.creatorProfileId ||= legacyCreator?.profileId || null;
   session.creatorName ||= legacyCreator?.name || "Người tạo phiên";
   session.creatorColor ||= legacyCreator?.color || AVATAR_COLORS[0];
+  session.adminProfileIds = [...new Set((Array.isArray(session.adminProfileIds) ? session.adminProfileIds : []).filter(Boolean).map(String))];
+  if (session.creatorProfileId && !session.adminProfileIds.includes(String(session.creatorProfileId))) session.adminProfileIds.unshift(String(session.creatorProfileId));
   session.payment ||= { bankName: "", accountNumber: "", accountOwner: "", transferNote: "", qrImage: "" };
   return session;
 }
@@ -198,7 +202,7 @@ function loadState() {
       const sessions = saved.sessions.map(normalizeSession);
       return {
         sessions,
-        activeSessionId: sessions.find((session) => !session.archived && session.status === "open")?.id || saved.activeSessionId || sessions.find((session) => !session.archived)?.id || null,
+        activeSessionId: sessions.find((session) => !session.archived && !session.deleted && session.status === "open")?.id || saved.activeSessionId || sessions.find((session) => !session.archived && !session.deleted)?.id || null,
         selectedMemberId: saved.selectedMemberId || null,
         profile: normalizeProfile(saved.profile),
         sessionFilter: SESSION_STATUSES.includes(saved.sessionFilter) ? saved.sessionFilter : "open"
@@ -342,8 +346,8 @@ async function loadRemoteSessions() {
   remoteSessionIds = new Set(data.map((row) => row.id));
   if (data.length) {
     appState.sessions = data.map((row) => normalizeSession({ ...row.payload, id: row.id }));
-    const activeExists = appState.sessions.some((session) => session.id === appState.activeSessionId && !session.archived);
-    const prioritizedSessions = sortSessionsByPriority(appState.sessions.filter((session) => !session.archived));
+    const activeExists = appState.sessions.some((session) => session.id === appState.activeSessionId && !session.archived && !session.deleted);
+    const prioritizedSessions = sortSessionsByPriority(appState.sessions.filter((session) => !session.archived && !session.deleted));
     const currentSession = appState.sessions.find((session) => session.id === appState.activeSessionId);
     if (!activeExists || (prioritizedSessions[0] && sessionPriority(currentSession) > sessionPriority(prioritizedSessions[0]))) {
       appState.activeSessionId = prioritizedSessions[0]?.id || null;
@@ -402,7 +406,7 @@ function currentSessionFilter() {
 }
 
 function sessionsForCurrentFilter() {
-  return sortSessionsByPriority(appState.sessions.filter((item) => !item.archived && item.status === currentSessionFilter()));
+  return sortSessionsByPriority(appState.sessions.filter((item) => !item.archived && !item.deleted && item.status === currentSessionFilter()));
 }
 
 function activeSession() {
@@ -452,7 +456,7 @@ function initials(name) {
 }
 
 function statusLabel(status) {
-  return ({ open: "Đang chọn món", locked: "Đã chốt", completed: "Hoàn tất" })[status] || status;
+  return ({ open: "Đang chọn món", locked: "Đã chốt", completed: "Hoàn tất", deleted: "Đã xóa" })[status] || status;
 }
 
 function sessionFilterLabel(status = currentSessionFilter()) {
@@ -460,12 +464,13 @@ function sessionFilterLabel(status = currentSessionFilter()) {
 }
 
 function sessionTone(session) {
+  if (session.deleted) return "deleted";
   if (session.archived) return "archived";
   return session.status === "locked" ? "locked" : session.status === "completed" ? "completed" : "open";
 }
 
 function sessionPriority(session) {
-  return ({ open: 0, locked: 1, completed: 2, archived: 3 })[sessionTone(session)] ?? 4;
+  return ({ open: 0, locked: 1, completed: 2, archived: 3, deleted: 4 })[sessionTone(session)] ?? 5;
 }
 
 function sortSessionsByPriority(sessions) {
@@ -532,6 +537,19 @@ function isSessionCreator(session) {
   return session.creatorProfileId === profile.id || session.creatorMemberId === profile.id || sameCreatorNickname;
 }
 
+function isSessionAdmin(session) {
+  const profile = currentProfile();
+  return Boolean(session && profile && (session.adminProfileIds || []).includes(String(profile.id)));
+}
+
+function canManageSession(session) {
+  return Boolean(isSessionCreator(session) || isSessionAdmin(session));
+}
+
+function memberHasAdminRole(session, member) {
+  return Boolean(member && (session.adminProfileIds || []).includes(String(member.profileId || member.id)));
+}
+
 function canManageSettlement(session) {
   return Boolean(isSessionCreator(session) || selectedMember(session));
 }
@@ -576,13 +594,14 @@ function renderAll() {
 }
 
 function renderDashboard() {
-  const session = activeSession();
   const today = new Date();
   dom.todayLabel.textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long" }).format(today);
 
-  const visibleSessions = appState.sessions.filter((item) => !item.archived);
-  const openSessions = visibleSessions.filter((item) => item.status === "open");
-  const lockedSessions = visibleSessions.filter((item) => item.status === "locked");
+  const visibleSessions = appState.sessions.filter((item) => !item.archived && !item.deleted);
+  const openSessions = sortSessionsByPriority(visibleSessions.filter((item) => item.status === "open"));
+  const lockedSessions = sortSessionsByPriority(visibleSessions.filter((item) => item.status === "locked"));
+  const selectedSession = visibleSessions.find((item) => item.id === appState.activeSessionId) || null;
+  const session = openSessions[0] || selectedSession || lockedSessions[0] || sortSessionsByPriority(visibleSessions)[0] || null;
   const totalOwed = lockedSessions.reduce((total, item) => total + (totalForSession(item) - paidForSession(item)), 0);
   const paidCount = session ? session.members.filter((member) => member.paid).length : 0;
   const peopleCount = session?.members.length || 0;
@@ -612,7 +631,12 @@ function renderDashboard() {
       <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session">Mở phiên →</button></div>`;
   }
 
-  const latest = sortSessionsByPriority(appState.sessions).slice(0, 6);
+  const latest = [
+    ...openSessions,
+    ...(selectedSession ? [selectedSession] : []),
+    ...lockedSessions,
+    ...sortSessionsByPriority(visibleSessions)
+  ].filter((item, index, list) => list.findIndex((candidate) => candidate.id === item.id) === index).slice(0, 6);
   dom.miniHistory.innerHTML = latest.length ? latest.map((item) => `
     <div class="mini-history-row session-row tone-${sessionTone(item)}"><span class="history-icon">${item.status === "completed" ? "✓" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
   `).join("") : `<div class="history-empty">Chưa có dữ liệu.</div>`;
@@ -643,6 +667,7 @@ function renderSession() {
   const member = selectedMember(session);
   const locked = isLocked(session);
   const isCreator = isSessionCreator(session, member);
+  const canManage = canManageSession(session);
   const profile = currentProfile();
   const canOrder = Boolean(profile) && !locked;
   const payments = calculatePayments(session);
@@ -683,10 +708,15 @@ function renderSession() {
   dom.joinOrderBtn.textContent = !profile ? "Tạo nickname để đặt món" : isOrderConfirmed ? "✓ Đã xác nhận món" : selectedCount ? `✓ Xác nhận ${selectedCount} phần đã chọn` : "✓ Xác nhận món đã chọn";
   dom.orderConfirmHint.textContent = !profile ? "Hãy tạo nickname trước." : isOrderConfirmed ? "Món của bạn đã được ghi nhận. Nếu chỉnh món, hãy xác nhận lại." : selectedCount ? "Kiểm tra món rồi bấm xác nhận để người tạo dễ chốt đơn." : "Tick ít nhất một món; nickname sẽ tự được thêm vào phiên.";
   const creatorIsParticipant = session.members.some((item) => item.profileId === session.creatorProfileId || item.id === session.creatorMemberId);
-  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý món, giá và thanh toán</small></span></div>`;
+  const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small><em class="role-badge">ADMIN</em></span><small>Quản lý toàn bộ phiên</small></span></div>`;
   const participantRows = session.members.map((item) => {
     const count = item.selections.reduce((total, selection) => total + selection.quantity, 0);
-    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${item.id === session.creatorMemberId ? '<small>(người tạo)</small>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${!locked && isCreator && session.members.length > 1 && item.id !== member?.id ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</div>`;
+    const isCreatorMember = item.id === session.creatorMemberId || item.profileId === session.creatorProfileId;
+    const hasAdminRole = memberHasAdminRole(session, item);
+    const canToggleAdmin = canManage && !isCreatorMember;
+    const canRemoveMember = !locked && canManage && session.members.length > 1 && item.id !== member?.id;
+    const actions = canToggleAdmin || canRemoveMember ? `<span class="member-actions">${canToggleAdmin ? `<button class="admin-toggle" data-toggle-admin="${item.id}" title="${hasAdminRole ? "Gỡ quyền admin" : "Đặt làm admin"}">${hasAdminRole ? "Gỡ admin" : "Đặt admin"}</button>` : ""}${canRemoveMember ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</span>` : "";
+    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${isCreatorMember ? '<small>(người tạo)</small>' : ""}${hasAdminRole ? '<em class="role-badge">ADMIN</em>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${actions}</div>`;
   }).join("");
   dom.memberList.innerHTML = creatorRow + participantRows;
 
@@ -698,7 +728,7 @@ function renderSession() {
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
   dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Tick một món ở phía trên để bắt đầu đặt."}</p>`;
 
-  $$("#equalSplitOption, #itemSplitOption").forEach((option) => { option.dataset.noEdit = String(!isCreator && !locked); });
+  $$("#equalSplitOption, #itemSplitOption").forEach((option) => { option.dataset.noEdit = String(!canManage && !locked); });
   $$("input[name=\"splitMethod\"]").forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked; });
   dom.equalFields.classList.toggle("visible", session.splitMethod === "equal");
   dom.itemFields.classList.toggle("visible", session.splitMethod === "item");
@@ -707,8 +737,8 @@ function renderSession() {
   dom.discountInput.value = session.discount || "";
   [dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput].forEach((input) => {
     input.disabled = locked;
-    input.readOnly = !isCreator;
-    input.dataset.noEdit = String(!isCreator && !locked);
+    input.readOnly = !canManage;
+    input.dataset.noEdit = String(!canManage && !locked);
   });
 
   const amountDescription = session.splitMethod === "equal" ? `Mỗi người nhận ${money(payments[0]?.amount || 0)}` : `Tổng giá món ${money(session.members.reduce((total, item) => total + itemSubtotal(item), 0))}`;
@@ -721,11 +751,11 @@ function renderSession() {
   dom.transferNoteInput.value = session.payment.transferNote || "";
   [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput].forEach((input) => {
     input.disabled = locked;
-    input.readOnly = !isCreator;
-    input.dataset.noEdit = String(!isCreator && !locked);
+    input.readOnly = !canManage;
+    input.dataset.noEdit = String(!canManage && !locked);
   });
-  dom.qrFileInput.disabled = locked || !isCreator;
-  dom.qrDropzone.dataset.noEdit = String(!isCreator && !locked);
+  dom.qrFileInput.disabled = locked || !canManage;
+  dom.qrDropzone.dataset.noEdit = String(!canManage && !locked);
   dom.qrPreview.hidden = !session.payment.qrImage;
   dom.qrPlaceholder.hidden = Boolean(session.payment.qrImage);
   if (session.payment.qrImage) dom.qrPreview.src = session.payment.qrImage;
@@ -769,10 +799,26 @@ function isWithinFilter(dateValue, filter) {
 function renderHistory() {
   const filter = dom.historyFilter.value;
   const archiveOnly = filter === "archive";
+  const deletedOnly = filter === "deleted";
   const sessions = [...appState.sessions]
-    .filter((session) => archiveOnly ? session.archived : !session.archived && isWithinFilter(session.createdAt, filter))
+    .filter((session) => archiveOnly ? session.archived && !session.deleted : deletedOnly ? session.deleted : !session.archived && !session.deleted && isWithinFilter(session.createdAt, filter))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const allSessions = appState.sessions.filter((session) => !session.archived);
+  const allSessions = appState.sessions.filter((session) => !session.archived && !session.deleted);
+  const historyGroups = [
+    { key: "completed", title: "Đã hoàn thành", icon: "✓", sessions: appState.sessions.filter((session) => !session.archived && !session.deleted && session.status === "completed") },
+    { key: "locked", title: "Đã chốt", icon: "◆", sessions: appState.sessions.filter((session) => !session.archived && !session.deleted && session.status === "locked") },
+    { key: "archived", title: "Lưu trữ", icon: "⌑", sessions: appState.sessions.filter((session) => session.archived && !session.deleted) },
+    { key: "deleted", title: "Đã xóa", icon: "⌫", sessions: appState.sessions.filter((session) => session.deleted) }
+  ];
+  dom.historyStatusGroups.innerHTML = historyGroups.map((group) => {
+    const orderedSessions = [...group.sessions].sort((left, right) => new Date(right.deletedAt || right.archivedAt || right.completedAt || right.createdAt) - new Date(left.deletedAt || left.archivedAt || left.completedAt || left.createdAt));
+    const cards = orderedSessions.length ? orderedSessions.map((session) => {
+      const canOpen = group.key === "completed" || group.key === "locked";
+      const timestamp = group.key === "deleted" ? session.deletedAt : group.key === "archived" ? session.archivedAt : group.key === "completed" ? session.completedAt : session.lockedAt;
+      return `<button class="history-group-session ${canOpen ? "is-clickable" : ""}" type="button" ${canOpen ? `data-open-session="${session.id}"` : ""}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)} · ${shortDate(timestamp || session.createdAt)}</small></span><b>${money(totalForSession(session))}</b></button>`;
+    }).join("") : `<p class="history-group-empty">Chưa có phiên.</p>`;
+    return `<article class="history-status-card tone-${group.key}"><div class="history-status-heading"><span class="history-status-icon">${group.icon}</span><div><strong>${group.title}</strong><small>${group.sessions.length} phiên</small></div></div><div class="history-group-list">${cards}</div></article>`;
+  }).join("");
   dom.historyStats.innerHTML = [
     ["Hôm nay", "day"],
     ["Tuần này", "week"],
@@ -784,8 +830,8 @@ function renderHistory() {
   }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
-  ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived || session.deleted ? "" : "is-clickable"}" ${session.archived || session.deleted ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived || session.deleted ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.deletedAt || session.archivedAt || session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.deleted ? "Đã xóa" : session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived && !session.deleted ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+  ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : deletedOnly ? "Mục Đã xóa đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
 function markOrderAsChanged(member) {
@@ -838,7 +884,7 @@ function setMenuQuantity(menuId, value) {
 function updatePaymentInfo() {
   const session = activeSession();
   if (!session || isLocked(session)) return;
-  if (!isSessionCreator(session)) {
+  if (!canManageSession(session)) {
     showNoPermission();
     renderAll();
     return;
@@ -938,6 +984,7 @@ function createSession(event) {
     creatorProfileId: profile.id,
     creatorName: profile.nickname,
     creatorColor: profile.color,
+    adminProfileIds: [profile.id],
     payment: { bankName: "", accountNumber: "", accountOwner: "", transferNote: "", qrImage: "" }
   };
   appState.sessions.unshift(session);
@@ -990,18 +1037,21 @@ function archiveActiveSession() {
 function deleteSession(sessionId) {
   const session = appState.sessions.find((item) => item.id === sessionId);
   if (!session) return;
-  if (!window.confirm(`Xóa hẳn “${session.title}”? Dữ liệu phiên này sẽ không thể khôi phục.`)) return;
-  appState.sessions = appState.sessions.filter((item) => item.id !== sessionId);
+  if (!canManageSession(session)) return showNoPermission();
+  if (!window.confirm(`Đưa “${session.title}” vào mục Đã xóa? Phiên sẽ không còn xuất hiện trong các phiên hoạt động.`)) return;
+  session.deleted = true;
+  session.deletedAt = new Date().toISOString();
   if (appState.activeSessionId === sessionId) appState.activeSessionId = null;
   saveState();
   renderAll();
   setView("dashboard");
-  showToast("Đã xóa hẳn phiên đặt đồ.");
+  showToast("Đã chuyển phiên vào mục Đã xóa.");
 }
 
 function restoreSession(sessionId) {
   const session = appState.sessions.find((item) => item.id === sessionId);
   if (!session) return;
+  if (!canManageSession(session)) return showNoPermission();
   session.archived = false;
   session.archivedAt = null;
   appState.sessionFilter = session.status;
@@ -1016,6 +1066,7 @@ function restoreSession(sessionId) {
 function openSessionFromHistory(sessionId) {
   const session = appState.sessions.find((item) => item.id === sessionId);
   if (!session) return;
+  if (session.deleted) return showToast("Phiên này đã nằm trong mục Đã xóa.");
   if (session.archived) return showToast("Hãy khôi phục phiên lưu trữ trước khi xem chi tiết.");
   appState.sessionFilter = session.status;
   appState.activeSessionId = session.id;
@@ -1071,12 +1122,29 @@ function bindEvents() {
   dom.changeNicknameBtn.addEventListener("click", () => openProfileModal(false));
   dom.joinOrderBtn.addEventListener("click", confirmCurrentOrder);
   dom.memberList.addEventListener("click", (event) => {
+    const adminButton = event.target.closest("[data-toggle-admin]");
+    if (adminButton) {
+      const session = activeSession();
+      const member = session?.members.find((item) => item.id === adminButton.dataset.toggleAdmin);
+      if (!session || !member || !canManageSession(session)) return showNoPermission();
+      const isCreatorMember = member.id === session.creatorMemberId || member.profileId === session.creatorProfileId;
+      if (isCreatorMember) return showToast("Người tạo phiên luôn có quyền admin.");
+      const profileId = String(member.profileId || member.id);
+      const adminIds = session.adminProfileIds || (session.adminProfileIds = []);
+      const index = adminIds.indexOf(profileId);
+      if (index >= 0) adminIds.splice(index, 1);
+      else adminIds.push(profileId);
+      saveState();
+      renderAll();
+      showToast(index >= 0 ? `Đã gỡ quyền admin của ${member.name}.` : `Đã cấp quyền admin cho ${member.name}.`);
+      return;
+    }
     const button = event.target.closest("[data-remove-member]");
     if (!button) return;
     const session = activeSession();
     const memberId = button.dataset.removeMember;
     const member = session.members.find((item) => item.id === memberId);
-    if (!member || isLocked(session) || !isSessionCreator(session)) return;
+    if (!member || isLocked(session) || !canManageSession(session)) return showNoPermission();
     if (!window.confirm(`Xóa ${member.name} khỏi phiên này?`)) return;
     session.members = session.members.filter((item) => item.id !== memberId);
     appState.selectedMemberId = currentProfile()?.id || null;
@@ -1130,7 +1198,7 @@ function bindEvents() {
   $$('input[name="splitMethod"]').forEach((radio) => radio.addEventListener("change", () => {
     const session = activeSession();
     if (isLocked(session)) return;
-    if (!isSessionCreator(session)) {
+    if (!canManageSession(session)) {
       showNoPermission();
       renderAll();
       return;
@@ -1138,16 +1206,16 @@ function bindEvents() {
     session.splitMethod = radio.value;
     saveState(); renderAll();
   }));
-  dom.totalBillInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.equalTotal = Number(dom.totalBillInput.value || 0); saveState(); renderAll(); });
-  dom.deliveryFeeInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.deliveryFee = Number(dom.deliveryFeeInput.value || 0); saveState(); renderAll(); });
-  dom.discountInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.discount = Number(dom.discountInput.value || 0); saveState(); renderAll(); });
+  dom.totalBillInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!canManageSession(session)) { showNoPermission(); renderAll(); return; } session.equalTotal = Number(dom.totalBillInput.value || 0); saveState(); renderAll(); });
+  dom.deliveryFeeInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!canManageSession(session)) { showNoPermission(); renderAll(); return; } session.deliveryFee = Number(dom.deliveryFeeInput.value || 0); saveState(); renderAll(); });
+  dom.discountInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!canManageSession(session)) { showNoPermission(); renderAll(); return; } session.discount = Number(dom.discountInput.value || 0); saveState(); renderAll(); });
 
   [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput].forEach((input) => input.addEventListener("input", updatePaymentInfo));
   dom.qrFileInput.addEventListener("change", () => {
     const session = activeSession();
     const file = dom.qrFileInput.files?.[0];
     if (!file || isLocked(session)) return;
-    if (!isSessionCreator(session)) return showNoPermission();
+    if (!canManageSession(session)) return showNoPermission();
     if (!file.type.startsWith("image/")) { dom.qrFileInput.value = ""; return showToast("Chỉ có thể dùng ảnh PNG, JPG hoặc WEBP làm mã QR."); }
     if (file.size > 1_000_000) { dom.qrFileInput.value = ""; return showToast("Ảnh QR nên nhỏ hơn 1 MB để dễ lưu trên trình duyệt."); }
     if (supabaseClient) {
@@ -1184,7 +1252,7 @@ function bindEvents() {
     showToast(checkbox.checked ? "Đã ghi nhận chuyển khoản." : "Đã bỏ trạng thái chuyển khoản.");
   });
 
-  dom.saveSessionBtn.addEventListener("click", () => { const session = activeSession(); if (!isSessionCreator(session)) return showNoPermission(); saveState(); showToast("Đã lưu thay đổi trên trình duyệt này."); });
+  dom.saveSessionBtn.addEventListener("click", () => { const session = activeSession(); if (!canManageSession(session)) return showNoPermission(); saveState(); showToast("Đã lưu thay đổi trên trình duyệt này."); });
   dom.lockSessionBtn.addEventListener("click", () => {
     const session = activeSession();
     if (!session) return showToast("Hãy tạo phiên đặt đồ trước.");
@@ -1205,7 +1273,7 @@ function bindEvents() {
   dom.closeSessionBtn.addEventListener("click", () => {
     const session = activeSession();
     if (!session) return showToast("Hãy tạo phiên đặt đồ trước.");
-    if (!isSessionCreator(session)) return showNoPermission();
+    if (!canManageSession(session)) return showNoPermission();
     if (session.status === "open") return showToast("Hãy chốt tổng tiền trước khi hoàn tất phiên.");
     if (session.status === "completed") return;
     const unpaid = session.members.filter((member) => !member.paid).length;
@@ -1218,7 +1286,7 @@ function bindEvents() {
   dom.archiveSessionBtn.addEventListener("click", archiveActiveSession);
   dom.deleteSessionBtn.addEventListener("click", () => {
     const session = activeSession();
-    if (!session || !isSessionCreator(session)) return showNoPermission();
+    if (!session || !canManageSession(session)) return showNoPermission();
     deleteSession(session.id);
   });
   dom.historyFilter.addEventListener("change", renderHistory);
@@ -1229,6 +1297,10 @@ function bindEvents() {
     if (deleteButton) return deleteSession(deleteButton.dataset.deleteSession);
     const sessionRow = event.target.closest("[data-open-session]");
     if (sessionRow) openSessionFromHistory(sessionRow.dataset.openSession);
+  });
+  dom.historyStatusGroups.addEventListener("click", (event) => {
+    const sessionCard = event.target.closest("[data-open-session]");
+    if (sessionCard) openSessionFromHistory(sessionCard.dataset.openSession);
   });
   $("#exportBtn").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(appState.sessions, null, 2)], { type: "application/json" });

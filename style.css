@@ -293,3 +293,55 @@ h3 { font-size: 19px; }
   .session-actions-panel .toolbar-actions button { min-height: 42px; }
   .paid-control { min-width: 0; }
 }
+
+/* Lịch sử được chia theo trạng thái phiên */
+.history-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 0 0 20px; }
+.history-status-card { min-height: 190px; padding: 14px; border: 1px solid #dfe8e1; border-radius: 15px; background: #fff; box-shadow: 0 5px 14px rgba(37, 59, 45, .04); }
+.history-status-card.tone-completed { border-color: #167443; background: linear-gradient(145deg, #176b3d, #248a50); color: #fff; }
+.history-status-card.tone-locked { border-color: #bdd7f7; background: #f7fbff; }
+.history-status-card.tone-archived { border-color: #dce2de; background: #f4f6f5; }
+.history-status-card.tone-deleted { border-color: #e3d4d7; background: #fbf5f6; }
+.history-status-heading { display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 1px solid rgba(86, 105, 94, .13); }
+.history-status-card.tone-completed .history-status-heading { border-color: rgba(255,255,255,.25); }
+.history-status-icon { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 9px; background: #eaf4ed; color: #167443; font-weight: 900; }
+.tone-completed .history-status-icon { background: #effff4; color: #12723f; }
+.tone-locked .history-status-icon { background: #deedff; color: #2864b0; }
+.tone-archived .history-status-icon { background: #e4e9e6; color: #68736c; }
+.tone-deleted .history-status-icon { background: #f4e4e6; color: #9a4c5a; }
+.history-status-heading strong, .history-status-heading small { display: block; }
+.history-status-heading strong { font-size: 14px; }
+.history-status-heading small { margin-top: 2px; color: #748078; font-size: 12px; }
+.tone-completed .history-status-heading small { color: #d9f4e3; }
+.history-group-list { display: grid; gap: 7px; max-height: 220px; padding: 10px 1px 1px; overflow: auto; }
+.history-group-session { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 9px; border: 1px solid #e7ece8; border-radius: 9px; background: rgba(255,255,255,.82); color: #33463a; text-align: left; }
+.history-group-session.is-clickable:hover { border-color: #88bd9b; transform: translateY(-1px); }
+.history-group-session span { min-width: 0; }
+.history-group-session strong, .history-group-session small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-group-session strong { font-size: 12px; }
+.history-group-session small { margin-top: 3px; color: #748078; font-size: 11px; }
+.history-group-session b { flex: 0 0 auto; color: #226b42; font-size: 12px; }
+.tone-completed .history-group-session { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.11); color: #fff; }
+.tone-completed .history-group-session small { color: #dcf6e5; }
+.tone-completed .history-group-session b { color: #fff; }
+.history-group-empty { margin: 16px 0 0; color: #8a958e; font-size: 12px; text-align: center; }
+.tone-completed .history-group-empty { color: #d8f5e2; }
+.history-row.tone-deleted { background: #fbf5f6; border-left-color: #aa5968; }
+.status-chip.tone-deleted { background: #f3e1e4; color: #934655; }
+
+/* Vai trò quản trị ngay trong danh sách người tham gia */
+.member-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+.member-actions .remove-member { margin-left: 0; }
+.role-badge { display: inline-flex; align-items: center; margin-left: 5px; padding: 2px 5px; border: 1px solid #b9d9c2; border-radius: 999px; background: #e9f8ee; color: #14713d; font-size: 10px; font-style: normal; font-weight: 850; letter-spacing: .03em; line-height: 1.1; vertical-align: middle; }
+.admin-toggle { min-height: 28px; padding: 4px 7px; border: 1px solid #b9d9c2; border-radius: 8px; background: #edf9f0; color: #176b3d; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.admin-toggle:hover { border-color: #5da77a; background: #dff4e6; }
+
+@media (max-width: 1150px) {
+  .history-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .history-status-grid { grid-template-columns: 1fr; gap: 10px; }
+  .history-status-card { min-height: 0; }
+  .history-group-list { max-height: 190px; }
+  .member-actions { flex-wrap: wrap; justify-content: flex-end; }
+}

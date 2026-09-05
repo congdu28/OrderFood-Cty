@@ -16,14 +16,14 @@ Mở trực tiếp file `index.html` bằng trình duyệt. Dự án không dùn
    - **Theo từng món:** hệ thống cộng món mỗi người chọn; phí ship và giảm giá được chia đều.
 5. Nhập thông tin tài khoản, nội dung chuyển khoản và tải ảnh QR nếu có.
 6. Phần tính tiền và theo dõi chuyển khoản hiển thị rõ từng người chọn món gì, số lượng, giá từng món và tổng cần chuyển. Khi mọi người đã xác nhận, bất kỳ người nào đã tham gia phiên đều có thể bấm **Chốt & gửi tổng tiền** để khóa món/giá và mở checkbox **Đã chuyển**. Mỗi nickname chỉ tick được trạng thái của chính mình.
-7. Bất kỳ người đã tham gia phiên đều có thể **lưu trữ** phiên để khôi phục sau. Chỉ người tạo mới có thể sửa cách chia, phí/phát sinh và thông tin thanh toán, **Hoàn thành đơn** hoặc **xóa hẳn** phiên; giá món có sẵn được cố định ngay khi tạo phiên. Thao tác không có quyền sẽ hiện thông báo rõ ràng. Phiên lưu trữ nằm trong bộ lọc **Kho lưu trữ** ở màn Lịch sử.
+7. Bất kỳ người đã tham gia phiên đều có thể **lưu trữ** phiên để khôi phục sau. Người tạo là **ADMIN** mặc định và có thể đặt hoặc gỡ quyền ADMIN cho người đang tham gia; ADMIN được sửa cách chia, phí/phát sinh, thông tin thanh toán, quản lý người tham gia, **Hoàn thành đơn** và **xóa** phiên. Giá món có sẵn được cố định ngay khi tạo phiên. Phiên xóa được đưa vào mục **Đã xóa** để lịch sử không mất dữ liệu. Thao tác không có quyền sẽ hiện thông báo rõ ràng.
 8. Hoàn tất phiên để giữ lại số liệu trong màn Lịch sử; có bộ lọc ngày, tuần, tháng, năm và nút xuất JSON.
 
 ## Lưu ý của MVP
 
 Dữ liệu phiên đặt đồ được đồng bộ vào Supabase nếu đã cấu hình. Nickname được lưu bằng `localStorage`, nên chỉ dùng lại được trên chính trình duyệt/thiết bị đã tạo. Muốn đổi nickname, bấm vào avatar ở góc phải hoặc nút **Đổi nickname**.
 
-Menu trái lọc riêng **phiên đang mở**, **phiên đã chốt** và **phiên đã hoàn thành**; ô chọn phiên chỉ hiển thị đúng nhóm đang chọn. Trong Lịch sử, phiên hoàn thành dùng nền **xanh lá đậm** kèm dấu xác nhận; phiên lưu trữ có màu xám. Phiên đã xóa hẳn không còn xuất hiện trong danh sách.
+Menu trái lọc riêng **phiên đang mở**, **phiên đã chốt** và **phiên đã hoàn thành**; ô chọn phiên chỉ hiển thị đúng nhóm đang chọn. Tổng quan luôn ưu tiên phiên đang mở, sau đó là phiên người dùng vừa chọn và phiên đã chốt. Lịch sử có bốn ô: **Đã hoàn thành**, **Đã chốt**, **Lưu trữ** và **Đã xóa**.
 
 ## Bật Supabase để test nhiều người dùng
 
@@ -42,6 +42,6 @@ window.SUPABASE_CONFIG = {
 
 4. Tải lại website trên từ hai trình duyệt hoặc hai thiết bị. Góc trái sẽ hiện **Supabase · đồng bộ trực tiếp** khi kết nối thành công.
 
-Trong lúc test, schema của `food_order_sessions` mở quyền đọc/ghi cho mọi người có link để dễ đồng bộ. Khi dùng nội bộ thực tế, nên bổ sung phân quyền người tạo phiên ở cấp database.
+Trong lúc test, schema của `food_order_sessions` mở quyền đọc/ghi cho mọi người có link để dễ đồng bộ. Vì vậy ADMIN ở bản hiện tại là quyền điều khiển trong giao diện theo nickname, không phải tài khoản bảo mật tuyệt đối. Khi dùng nội bộ thực tế, nên bổ sung Supabase Auth và RLS để bảo vệ quyền quản trị ở cấp database.
 
 Không bao giờ dán `service_role key` vào `supabase-config.js` hoặc đưa lên website.
