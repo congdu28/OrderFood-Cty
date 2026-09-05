@@ -1,6 +1,7 @@
 const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
+const SESSION_STATUSES = ["open", "locked", "completed"];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -39,7 +40,6 @@ const dom = {
   totalBillInput: $("#totalBillInput"),
   deliveryFeeInput: $("#deliveryFeeInput"),
   discountInput: $("#discountInput"),
-  pricingList: $("#pricingList"),
   billingModeBadge: $("#billingModeBadge"),
   billingTotal: $("#billingTotal"),
   orderBreakdown: $("#orderBreakdown"),
@@ -200,14 +200,15 @@ function loadState() {
         sessions,
         activeSessionId: sessions.find((session) => !session.archived && session.status === "open")?.id || saved.activeSessionId || sessions.find((session) => !session.archived)?.id || null,
         selectedMemberId: saved.selectedMemberId || null,
-        profile: normalizeProfile(saved.profile)
+        profile: normalizeProfile(saved.profile),
+        sessionFilter: SESSION_STATUSES.includes(saved.sessionFilter) ? saved.sessionFilter : "open"
       };
     }
   } catch (error) {
     console.warn("Không thể đọc dữ liệu cũ", error);
   }
 
-  return { sessions: [], activeSessionId: null, selectedMemberId: null, profile: null };
+  return { sessions: [], activeSessionId: null, selectedMemberId: null, profile: null, sessionFilter: "open" };
 }
 
 function saveState() {
@@ -396,8 +397,16 @@ async function initializeSupabase() {
   }
 }
 
+function currentSessionFilter() {
+  return SESSION_STATUSES.includes(appState.sessionFilter) ? appState.sessionFilter : "open";
+}
+
+function sessionsForCurrentFilter() {
+  return sortSessionsByPriority(appState.sessions.filter((item) => !item.archived && item.status === currentSessionFilter()));
+}
+
 function activeSession() {
-  const availableSessions = appState.sessions.filter((item) => !item.archived);
+  const availableSessions = sessionsForCurrentFilter();
   let session = availableSessions.find((item) => item.id === appState.activeSessionId);
   if (!session) {
     session = sortSessionsByPriority(availableSessions)[0];
@@ -444,6 +453,10 @@ function initials(name) {
 
 function statusLabel(status) {
   return ({ open: "Đang chọn món", locked: "Đã chốt", completed: "Hoàn tất" })[status] || status;
+}
+
+function sessionFilterLabel(status = currentSessionFilter()) {
+  return ({ open: "Phiên đang mở", locked: "Phiên đã chốt", completed: "Phiên đã hoàn thành" })[status] || "Phiên đặt đồ";
 }
 
 function sessionTone(session) {
@@ -537,12 +550,22 @@ function showToast(message) {
 function setView(view) {
   currentView = view;
   $$(".view").forEach((section) => section.classList.toggle("is-active", section.id === `${view}View`));
-  $$(".nav-link").forEach((button) => button.classList.toggle("is-active", button.dataset.viewTarget === view));
+  $$(".nav-link").forEach((button) => button.classList.toggle("is-active", button.dataset.viewTarget === view || (view === "session" && button.dataset.sessionStatus === currentSessionFilter())));
   const titles = { dashboard: "Ăn trưa thật gọn", session: "Phiên đặt đồ", history: "Lịch sử đơn ăn" };
-  dom.pageTitle.textContent = titles[view];
+  dom.pageTitle.textContent = view === "session" ? sessionFilterLabel() : titles[view];
   dom.sidebar.classList.remove("mobile-open");
   if (view === "session") renderSession();
   if (view === "history") renderHistory();
+}
+
+function showSessionsByStatus(status) {
+  if (!SESSION_STATUSES.includes(status)) return;
+  appState.sessionFilter = status;
+  const sessions = sessionsForCurrentFilter();
+  if (!sessions.some((session) => session.id === appState.activeSessionId)) appState.activeSessionId = sessions[0]?.id || null;
+  saveState();
+  renderAll();
+  setView("session");
 }
 
 function renderAll() {
@@ -598,17 +621,16 @@ function renderDashboard() {
 function renderSession() {
   const session = activeSession();
   if (!session) {
-    dom.sessionSwitcher.innerHTML = `<option>Chưa có phiên đang hoạt động</option>`;
+    dom.sessionSwitcher.innerHTML = `<option>Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")}</option>`;
     dom.sessionSwitcher.disabled = true;
-    dom.sessionMeta.textContent = "Tạo phiên mới để bắt đầu đặt đồ.";
+    dom.sessionMeta.textContent = `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")}.`;
     dom.statusNotice.classList.add("show");
-    dom.statusNotice.innerHTML = `Chưa có phiên đang hoạt động. Bấm <strong>“Tạo phiên mới”</strong> để bắt đầu.`;
+    dom.statusNotice.innerHTML = currentSessionFilter() === "open" ? `Chưa có phiên đang mở. Bấm <strong>“Tạo phiên mới”</strong> để bắt đầu.` : `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")} để hiển thị.`;
     [dom.saveSessionBtn, dom.lockSessionBtn, dom.archiveSessionBtn, dom.deleteSessionBtn, dom.closeSessionBtn].forEach((button) => { button.disabled = true; });
     dom.memberPicker.innerHTML = "";
     dom.memberList.innerHTML = "";
     dom.foodOptions.innerHTML = "";
     dom.selectedFoods.innerHTML = "";
-    dom.pricingList.innerHTML = "";
     dom.orderBreakdown.innerHTML = "";
     dom.paymentMembers.innerHTML = "";
     dom.joinOrderBtn.disabled = true;
@@ -627,7 +649,7 @@ function renderSession() {
   const selectedCount = member?.selections.reduce((total, item) => total + item.quantity, 0) || 0;
 
   dom.sessionSwitcher.disabled = false;
-  dom.sessionSwitcher.innerHTML = sortSessionsByPriority(appState.sessions.filter((item) => !item.archived)).map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "■"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
+  dom.sessionSwitcher.innerHTML = sessionsForCurrentFilter().map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "✓"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
   dom.sessionMeta.textContent = `${session.restaurant} · Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
   dom.memberCountBadge.textContent = `${session.members.length} người`;
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
@@ -640,7 +662,7 @@ function renderSession() {
   if (session.status === "open") {
     dom.statusNotice.innerHTML = member
       ? `Bạn đang tham gia bằng <strong>${escapeHtml(currentProfile()?.nickname || "nickname")}</strong>. Tổng tiền tự cập nhật theo số người đã tham gia.`
-      : `Phiên đang mở — bấm <strong>“Tham gia”</strong> để cùng chọn món bằng nickname đã lưu. Tổng tiền tự cập nhật theo số người tham gia.`;
+      : `Phiên đang mở — tick một món để tự tham gia bằng nickname đã lưu. Tổng tiền tự cập nhật theo số người tham gia.`;
   } else if (session.status === "locked") {
     dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.`;
   } else {
@@ -688,7 +710,6 @@ function renderSession() {
     input.readOnly = !isCreator;
     input.dataset.noEdit = String(!isCreator && !locked);
   });
-  renderPricingList(session, locked, !isCreator);
 
   const amountDescription = session.splitMethod === "equal" ? `Mỗi người nhận ${money(payments[0]?.amount || 0)}` : `Tổng giá món ${money(session.members.reduce((total, item) => total + itemSubtotal(item), 0))}`;
   dom.billingTotal.innerHTML = `<span>${amountDescription}</span><b>${money(totalForSession(session))}</b>`;
@@ -729,12 +750,6 @@ function renderOrderBreakdown(session) {
   dom.orderBreakdown.innerHTML = `<div class="order-breakdown-heading"><strong>Ai chọn món gì</strong><span>SL và thành tiền từng món</span></div>${rows || `<p class="hint-text">Chưa có ai chọn món.</p>`}`;
 }
 
-function renderPricingList(session, locked, readOnly = false) {
-  const menuRows = session.menu.map((menuItem) => `<div class="pricing-row"><span title="${escapeHtml(menuItem.name)}">${escapeHtml(menuItem.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-menu-price="${menuItem.id}" value="${menuItem.price}" ${locked ? "disabled" : ""} ${readOnly ? "readonly" : ""} data-no-edit="${String(readOnly && !locked)}"/><span>đ</span></div></div>`);
-  const customRows = session.members.flatMap((member) => member.selections.filter((selection) => selection.custom).map((selection) => `<div class="pricing-row"><span title="${escapeHtml(selection.name)}">${escapeHtml(selection.name)} · ${escapeHtml(member.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-selection-price="${selection.id}" value="${selection.price}" ${locked ? "disabled" : ""} ${readOnly ? "readonly" : ""} data-no-edit="${String(readOnly && !locked)}"/><span>đ</span></div></div>`));
-  dom.pricingList.innerHTML = [...menuRows, ...customRows].join("") || `<p class="hint-text">Chưa có món để nhập giá.</p>`;
-}
-
 function isWithinFilter(dateValue, filter) {
   if (filter === "all") return true;
   const date = new Date(dateValue);
@@ -769,7 +784,7 @@ function renderHistory() {
   }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : session.status === "completed" ? "✓ Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
@@ -926,6 +941,7 @@ function createSession(event) {
     payment: { bankName: "", accountNumber: "", accountOwner: "", transferNote: "", qrImage: "" }
   };
   appState.sessions.unshift(session);
+  appState.sessionFilter = "open";
   appState.activeSessionId = session.id;
   appState.selectedMemberId = profile.id;
   saveState();
@@ -988,6 +1004,7 @@ function restoreSession(sessionId) {
   if (!session) return;
   session.archived = false;
   session.archivedAt = null;
+  appState.sessionFilter = session.status;
   appState.activeSessionId = session.id;
   appState.selectedMemberId = currentProfile()?.id || null;
   saveState();
@@ -1000,6 +1017,7 @@ function openSessionFromHistory(sessionId) {
   const session = appState.sessions.find((item) => item.id === sessionId);
   if (!session) return;
   if (session.archived) return showToast("Hãy khôi phục phiên lưu trữ trước khi xem chi tiết.");
+  appState.sessionFilter = session.status;
   appState.activeSessionId = session.id;
   appState.selectedMemberId = currentProfile()?.id || null;
   saveState();
@@ -1013,6 +1031,11 @@ function bindEvents() {
     if (protectedControl) {
       event.preventDefault();
       showNoPermission();
+      return;
+    }
+    const sessionStatusButton = event.target.closest("[data-session-status]");
+    if (sessionStatusButton) {
+      showSessionsByStatus(sessionStatusButton.dataset.sessionStatus);
       return;
     }
     const viewButton = event.target.closest("[data-view-target]");
@@ -1118,36 +1141,6 @@ function bindEvents() {
   dom.totalBillInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.equalTotal = Number(dom.totalBillInput.value || 0); saveState(); renderAll(); });
   dom.deliveryFeeInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.deliveryFee = Number(dom.deliveryFeeInput.value || 0); saveState(); renderAll(); });
   dom.discountInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.discount = Number(dom.discountInput.value || 0); saveState(); renderAll(); });
-  dom.pricingList.addEventListener("change", (event) => {
-    const session = activeSession();
-    if (isLocked(session)) return;
-    if (!isSessionCreator(session)) {
-      showNoPermission();
-      renderAll();
-      return;
-    }
-    const input = event.target;
-    const price = Math.max(0, Number(input.value || 0));
-    if (input.dataset.menuPrice) {
-      const menuItem = session.menu.find((item) => item.id === input.dataset.menuPrice);
-      if (menuItem) {
-        menuItem.price = price;
-        session.members.forEach((member) => {
-          const affectedSelections = member.selections.filter((selection) => selection.sourceMenuId === menuItem.id);
-          affectedSelections.forEach((selection) => { selection.price = price; });
-          if (affectedSelections.length) markOrderAsChanged(member);
-        });
-      }
-    }
-    if (input.dataset.selectionPrice) {
-      session.members.forEach((member) => {
-        const affectedSelections = member.selections.filter((selection) => selection.id === input.dataset.selectionPrice);
-        affectedSelections.forEach((selection) => { selection.price = price; });
-        if (affectedSelections.length) markOrderAsChanged(member);
-      });
-    }
-    saveState(); renderAll();
-  });
 
   [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput].forEach((input) => input.addEventListener("input", updatePaymentInfo));
   dom.qrFileInput.addEventListener("change", () => {
@@ -1206,7 +1199,8 @@ function bindEvents() {
     if (!window.confirm(`Chốt tổng ${money(totalForSession(session))}? Sau khi chốt, danh sách món và giá sẽ được khóa.`)) return;
     session.status = "locked";
     session.lockedAt = new Date().toISOString();
-    saveState(); renderAll(); showToast("Đã chốt tổng tiền và mở ô “Đã chuyển”.");
+    appState.sessionFilter = "locked";
+    saveState(); renderAll(); setView("session"); showToast("Đã chốt tổng tiền và mở ô “Đã chuyển”.");
   });
   dom.closeSessionBtn.addEventListener("click", () => {
     const session = activeSession();
@@ -1218,7 +1212,8 @@ function bindEvents() {
     if (!window.confirm(unpaid ? `Còn ${unpaid} người chưa tick đã chuyển. Vẫn hoàn tất phiên?` : "Hoàn tất phiên và đưa vào lịch sử?")) return;
     session.status = "completed";
     session.completedAt = new Date().toISOString();
-    saveState(); renderAll(); showToast("Phiên đã hoàn tất và lưu vào lịch sử.");
+    appState.sessionFilter = "completed";
+    saveState(); renderAll(); setView("session"); showToast("Phiên đã hoàn tất và lưu vào lịch sử.");
   });
   dom.archiveSessionBtn.addEventListener("click", archiveActiveSession);
   dom.deleteSessionBtn.addEventListener("click", () => {

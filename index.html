@@ -19,8 +19,14 @@
           <button class="nav-link is-active" data-view-target="dashboard">
             <span>⌂</span> Tổng quan
           </button>
-          <button class="nav-link" data-view-target="session">
-            <span>☷</span> Phiên đang mở
+          <button class="nav-link" data-session-status="open">
+            <span>◌</span> Phiên đang mở
+          </button>
+          <button class="nav-link" data-session-status="locked">
+            <span>◈</span> Phiên đã chốt
+          </button>
+          <button class="nav-link" data-session-status="completed">
+            <span>✓</span> Phiên đã hoàn thành
           </button>
           <button class="nav-link" data-view-target="history">
             <span>◷</span> Lịch sử
@@ -172,16 +178,11 @@
               </div>
 
               <div id="itemFields" class="billing-fields">
-                <div class="item-pricing-header">
-                  <label class="field-label">Giá từng món</label>
-                  <span>Người đặt có thể sửa trước khi chốt</span>
-                </div>
-                <div class="pricing-list" id="pricingList"></div>
                 <div class="fee-grid">
                   <label>Phí ship / phát sinh<div class="money-input"><input id="deliveryFeeInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                   <label>Giảm giá<div class="money-input"><input id="discountInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                 </div>
-                <p class="field-help">Phí ship và giảm giá được chia đều cho người tham gia.</p>
+                <p class="field-help">Giá món đã cố định khi tạo phiên. Phí ship và giảm giá được chia đều cho người tham gia.</p>
               </div>
               <div class="billing-total" id="billingTotal"></div>
               <div class="order-breakdown" id="orderBreakdown"></div>
