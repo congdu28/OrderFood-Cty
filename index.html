@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f36b45" />
+    <title>Ăn Chung · Chia Gọn</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Điều hướng chính">
+        <a class="brand" href="#dashboard" aria-label="Ăn Chung - trang chủ">
+          <span class="brand-mark">Ă</span>
+          <span>Ăn Chung<small>chia gọn, vui hơn</small></span>
+        </a>
+
+        <nav class="main-nav">
+          <button class="nav-link is-active" data-view-target="dashboard">
+            <span>⌂</span> Tổng quan
+          </button>
+          <button class="nav-link" data-view-target="session">
+            <span>☷</span> Phiên đang mở
+          </button>
+          <button class="nav-link" data-view-target="history">
+            <span>◷</span> Lịch sử
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="local-note">
+            <span class="note-dot"></span>
+            <span id="connectionNote">Đang dùng dữ liệu trên trình duyệt</span>
+          </div>
+          <button class="secondary-button full-width" id="newSessionBtn">
+            <span>＋</span> Tạo phiên mới
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobileMenuBtn" aria-label="Mở menu">☰</button>
+          <div>
+            <p class="eyebrow" id="todayLabel">Hôm nay</p>
+            <h1 id="pageTitle">Ăn trưa thật gọn</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="exportBtn" title="Xuất dữ liệu">⇩</button>
+            <button class="profile-button" type="button">
+              <span class="avatar avatar-coral">A</span>
+              <span class="profile-copy"><strong>Admin nhóm</strong><small>Người đặt</small></span>
+            </button>
+          </div>
+        </header>
+
+        <section class="view is-active" id="dashboardView">
+          <div class="hero-card">
+            <div>
+              <p class="eyebrow light">NHÓM CÙNG ĂN</p>
+              <h2>Đặt một lần,<br />mọi người trả thật gọn.</h2>
+              <p>Tạo phiên, gom món, chốt tổng và theo dõi chuyển khoản trong một nơi.</p>
+              <button class="primary-button" id="heroCreateBtn">＋ Tạo phiên đặt đồ</button>
+            </div>
+            <div class="hero-illustration" aria-hidden="true">
+              <div class="sun"></div>
+              <div class="plate"><span></span><i></i><b></b></div>
+              <div class="chopstick one"></div><div class="chopstick two"></div>
+              <div class="leaf leaf-one">●</div><div class="leaf leaf-two">●</div>
+            </div>
+          </div>
+
+          <div class="section-heading dashboard-heading">
+            <div><p class="eyebrow">TÌNH HÌNH HÔM NAY</p><h2>Rõ ràng trong một ánh nhìn</h2></div>
+            <button class="text-button" data-view-target="history">Xem lịch sử →</button>
+          </div>
+
+          <div class="stat-grid" id="statsGrid"></div>
+
+          <div class="dashboard-grid">
+            <article class="card active-session-summary" id="activeSessionSummary"></article>
+            <article class="card activity-card">
+              <div class="card-heading"><div><p class="eyebrow">LỊCH SỬ GẦN ĐÂY</p><h3>Các phiên mới nhất</h3></div></div>
+              <div class="mini-history" id="miniHistory"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="sessionView">
+          <div class="session-toolbar">
+            <div>
+              <div class="select-wrap compact-select">
+                <select id="sessionSwitcher" aria-label="Chọn phiên đặt đồ"></select>
+              </div>
+              <div class="session-meta" id="sessionMeta"></div>
+            </div>
+            <div class="toolbar-actions">
+              <button class="secondary-button" id="saveSessionBtn">Lưu thay đổi</button>
+              <button class="primary-button" id="lockSessionBtn">Chốt &amp; gửi tổng tiền</button>
+              <button class="secondary-button archive-button" id="archiveSessionBtn">⌑ Lưu trữ</button>
+              <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa</button>
+              <button class="icon-button danger-button" id="closeSessionBtn" title="Hoàn tất phiên">✓</button>
+            </div>
+          </div>
+
+          <div class="notice-strip" id="statusNotice"></div>
+
+          <div class="workspace-grid">
+            <article class="card member-card">
+              <div class="card-heading">
+                <div><p class="eyebrow">NGƯỜI ĐANG ĐẶT</p><h3>Chọn món của bạn</h3></div>
+                <span class="badge neutral" id="memberCountBadge"></span>
+              </div>
+              <label class="field-label" for="memberPicker">Nickname đang dùng trên trình duyệt này</label>
+              <div class="select-wrap"><select id="memberPicker"></select></div>
+              <div class="join-nickname">
+                <label class="field-label" for="newMemberName">Tham gia phiên với nickname mới</label>
+                <div class="inline-add">
+                  <input id="newMemberName" type="text" placeholder="Ví dụ: Mèo đói" maxlength="30" />
+                  <button class="join-button" id="addMemberBtn" type="button">Tham gia</button>
+                </div>
+                <p>Nickname chỉ dùng trong phiên đặt đồ này.</p>
+              </div>
+              <div class="member-list" id="memberList"></div>
+            </article>
+
+            <article class="card food-card">
+              <div class="card-heading">
+                <div><p class="eyebrow">DANH SÁCH MÓN</p><h3>Tick món muốn dùng</h3></div>
+                <span class="badge accent" id="currentOrderCount">0 món</span>
+              </div>
+              <p class="hint-text">Chọn món có sẵn, điều chỉnh số lượng hoặc thêm món riêng.</p>
+              <div class="food-options" id="foodOptions"></div>
+
+              <form class="custom-food-form" id="customFoodForm">
+                <div class="form-title"><span>＋</span> Món khác</div>
+                <div class="custom-food-fields">
+                  <input id="customFoodName" type="text" placeholder="Tên món" maxlength="60" required />
+                  <input id="customFoodPrice" type="number" min="0" step="1000" placeholder="Giá (đ)" required />
+                  <input id="customFoodQty" type="number" min="1" max="20" value="1" required />
+                  <button class="secondary-button" type="submit">Thêm</button>
+                </div>
+              </form>
+              <div class="selected-foods" id="selectedFoods"></div>
+            </article>
+
+            <article class="card billing-card">
+              <div class="card-heading">
+                <div><p class="eyebrow">TÍNH TIỀN</p><h3>Chọn cách chia</h3></div>
+                <span class="badge" id="billingModeBadge">Chưa chốt</span>
+              </div>
+
+              <div class="split-methods" role="radiogroup" aria-label="Cách tính tiền">
+                <label class="split-option" id="equalSplitOption">
+                  <input type="radio" name="splitMethod" value="equal" />
+                  <span><strong>Chia đều</strong><small>Nhập tổng hóa đơn, chia cho người tham gia</small></span>
+                </label>
+                <label class="split-option" id="itemSplitOption">
+                  <input type="radio" name="splitMethod" value="item" />
+                  <span><strong>Theo từng món</strong><small>Mỗi người trả những món đã tick</small></span>
+                </label>
+              </div>
+
+              <div id="equalFields" class="billing-fields">
+                <label class="field-label" for="totalBillInput">Tổng hóa đơn cuối cùng</label>
+                <div class="money-input"><input id="totalBillInput" type="number" min="0" step="1000" /><span>đ</span></div>
+                <p class="field-help">Đã bao gồm phí ship, giảm giá và các khoản điều chỉnh.</p>
+              </div>
+
+              <div id="itemFields" class="billing-fields">
+                <div class="item-pricing-header">
+                  <label class="field-label">Giá từng món</label>
+                  <span>Người đặt có thể sửa trước khi chốt</span>
+                </div>
+                <div class="pricing-list" id="pricingList"></div>
+                <div class="fee-grid">
+                  <label>Phí ship / phát sinh<div class="money-input"><input id="deliveryFeeInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
+                  <label>Giảm giá<div class="money-input"><input id="discountInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
+                </div>
+                <p class="field-help">Phí ship và giảm giá được chia đều cho người tham gia.</p>
+              </div>
+              <div class="billing-total" id="billingTotal"></div>
+            </article>
+
+            <article class="card payment-card">
+              <div class="card-heading">
+                <div><p class="eyebrow">THANH TOÁN</p><h3>Thông tin chuyển khoản</h3></div>
+                <span class="lock-label" id="paymentLockLabel">Mở</span>
+              </div>
+              <div class="payment-layout">
+                <div class="bank-fields">
+                  <label>Ngân hàng<input id="bankNameInput" type="text" maxlength="50" /></label>
+                  <label>Số tài khoản<input id="bankAccountInput" type="text" maxlength="30" /></label>
+                  <label>Tên chủ tài khoản<input id="bankOwnerInput" type="text" maxlength="60" /></label>
+                  <label>Nội dung chuyển khoản<input id="transferNoteInput" type="text" maxlength="80" /></label>
+                </div>
+                <label class="qr-dropzone" id="qrDropzone">
+                  <input id="qrFileInput" type="file" accept="image/*" />
+                  <img id="qrPreview" alt="Mã QR chuyển khoản" hidden />
+                  <span class="qr-placeholder" id="qrPlaceholder"><b>▦</b> Tải ảnh QR<br /><small>PNG, JPG hoặc WEBP</small></span>
+                </label>
+              </div>
+            </article>
+
+            <article class="card payments-card">
+              <div class="card-heading">
+                <div><p class="eyebrow">THEO DÕI CHUYỂN KHOẢN</p><h3>Ai đã chuyển tiền?</h3></div>
+                <div class="paid-summary" id="paidSummary"></div>
+              </div>
+              <div class="payment-members" id="paymentMembers"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="historyView">
+          <div class="section-heading">
+            <div><p class="eyebrow">DỮ LIỆU PHIÊN ĐẶT ĐỒ</p><h2>Lịch sử &amp; thống kê</h2></div>
+            <div class="select-wrap compact-select"><select id="historyFilter"><option value="all">Tất cả thời gian</option><option value="day">Hôm nay</option><option value="week">Tuần này</option><option value="month">Tháng này</option><option value="year">Năm nay</option><option value="archive">Kho lưu trữ</option></select></div>
+          </div>
+          <div class="history-stat-grid" id="historyStats"></div>
+          <article class="card history-table-card">
+            <div class="history-table" id="historyTable"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="sessionModal" hidden aria-hidden="true">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="newSessionTitle">
+        <button class="modal-close" id="closeModalBtn" type="button" aria-label="Đóng popup tạo phiên">×</button>
+        <p class="eyebrow">PHIÊN MỚI</p>
+        <h2 id="newSessionTitle">Hôm nay ăn gì?</h2>
+        <p class="modal-intro">Tạo một phiên để cả nhóm chọn món và thanh toán rõ ràng.</p>
+        <form id="newSessionForm">
+          <label>Tên phiên<input id="sessionTitleInput" type="text" placeholder="Ví dụ: Ăn trưa thứ Sáu" required maxlength="80" /></label>
+          <label>Quán ăn<input id="restaurantInput" type="text" placeholder="Ví dụ: Cơm gà Bà Buội" required maxlength="80" /></label>
+          <label>Hạn chốt món<input id="deadlineInput" type="datetime-local" required /></label>
+          <label>Nickname của bạn trong phiên<input id="initialMembersInput" type="text" placeholder="Ví dụ: An" required maxlength="30" /></label>
+          <div class="menu-builder">
+            <div class="menu-builder-heading"><span>Danh sách món &amp; giá</span><small>Người tham gia sẽ chọn theo giá này</small></div>
+            <div id="createMenuRows"></div>
+            <button class="add-menu-button" id="addCreateMenuBtn" type="button">＋ Thêm món</button>
+          </div>
+          <div class="modal-actions">
+            <button class="secondary-button" id="cancelModalBtn" type="button">Hủy</button>
+            <button class="primary-button modal-submit" type="submit">Tạo phiên đặt đồ →</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
