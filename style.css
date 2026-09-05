@@ -383,6 +383,30 @@ h3 { font-size: 19px; }
 .mini-history-row.session-row.tone-deleted b { color: #a64a4a; }
 .mini-history-row[data-open-dashboard-session] { cursor: pointer; transition: transform .16s ease, filter .16s ease; }
 .mini-history-row[data-open-dashboard-session]:hover { transform: translateX(2px); filter: brightness(.985); }
+.notice-strip .status-subnote { display: block; margin-top: 5px; font-size: 11px; font-weight: 700; opacity: .82; }
+.active-session-summary .summary-footer .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .88);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: .1px;
+  box-shadow: 0 5px 12px rgba(30, 62, 92, .12);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+}
+.active-session-summary .summary-footer .text-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(.98);
+  box-shadow: 0 7px 15px rgba(30, 62, 92, .16);
+}
+.active-session-summary.session-surface.tone-open .summary-footer .text-button { color: #245e9d; }
+.active-session-summary.session-surface.tone-locked .summary-footer .text-button { color: #1d4e87; }
+.active-session-summary.session-surface.tone-completed .summary-footer .text-button { color: #126c39; }
 
 @media (max-width: 850px) {
   .admin-access { margin: 0 auto 16px; }

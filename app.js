@@ -655,6 +655,11 @@ function canManageSettlement(session) {
   return Boolean(isGlobalAdmin() || isSessionCreator(session) || selectedMember(session));
 }
 
+function canEditPaymentInfo(session) {
+  if (!session || session.status === "completed") return false;
+  return Boolean(isGlobalAdmin() || isSessionCreator(session) || isSessionAdmin(session) || selectedMember(session));
+}
+
 function showNoPermission() {
   showToast("Bạn không có quyền sửa.");
 }
@@ -792,7 +797,7 @@ function renderSession() {
       ? `Bạn đang tham gia bằng <strong>${escapeHtml(currentProfile()?.nickname || "nickname")}</strong>. Tổng tiền tự cập nhật theo số người đã tham gia.`
       : `Phiên đang mở — tick một món để tự tham gia bằng nickname đã lưu. Tổng tiền tự cập nhật theo số người tham gia.`;
   } else if (session.status === "locked") {
-    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.`;
+    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.<small class="status-subnote">Đang chờ giao hàng</small>`;
   } else {
     dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.`;
   }
@@ -852,13 +857,14 @@ function renderSession() {
   dom.bankAccountInput.value = session.payment.accountNumber || "";
   dom.bankOwnerInput.value = session.payment.accountOwner || "";
   dom.transferNoteInput.value = session.payment.transferNote || "";
+  const canEditPayment = canEditPaymentInfo(session);
   [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput].forEach((input) => {
-    input.disabled = locked;
-    input.readOnly = !canManage;
-    input.dataset.noEdit = String(!canManage && !locked);
+    input.disabled = session.status === "completed";
+    input.readOnly = !canEditPayment;
+    input.dataset.noEdit = String(!canEditPayment && session.status !== "completed");
   });
-  dom.qrFileInput.disabled = locked || !canManage;
-  dom.qrDropzone.dataset.noEdit = String(!canManage && !locked);
+  dom.qrFileInput.disabled = session.status === "completed" || !canEditPayment;
+  dom.qrDropzone.dataset.noEdit = String(!canEditPayment && session.status !== "completed");
   dom.qrPreview.hidden = !session.payment.qrImage;
   dom.qrPlaceholder.hidden = Boolean(session.payment.qrImage);
   if (session.payment.qrImage) dom.qrPreview.src = session.payment.qrImage;
@@ -986,8 +992,8 @@ function setMenuQuantity(menuId, value) {
 
 function updatePaymentInfo() {
   const session = activeSession();
-  if (!session || isLocked(session)) return;
-  if (!canManageSession(session)) {
+  if (!session || session.status === "completed") return;
+  if (!canEditPaymentInfo(session)) {
     showNoPermission();
     renderAll();
     return;
@@ -1345,8 +1351,8 @@ function bindEvents() {
   dom.qrFileInput.addEventListener("change", () => {
     const session = activeSession();
     const file = dom.qrFileInput.files?.[0];
-    if (!file || isLocked(session)) return;
-    if (!canManageSession(session)) return showNoPermission();
+    if (!file || !session || session.status === "completed") return;
+    if (!canEditPaymentInfo(session)) return showNoPermission();
     if (!file.type.startsWith("image/")) { dom.qrFileInput.value = ""; return showToast("Chỉ có thể dùng ảnh PNG, JPG hoặc WEBP làm mã QR."); }
     if (file.size > 1_000_000) { dom.qrFileInput.value = ""; return showToast("Ảnh QR nên nhỏ hơn 1 MB để dễ lưu trên trình duyệt."); }
     if (supabaseClient) {
