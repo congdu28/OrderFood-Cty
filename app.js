@@ -1,6 +1,5 @@
 const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
-const PROFILE_TABLE = "food_order_profiles";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
 
 const $ = (selector) => document.querySelector(selector);
@@ -23,7 +22,7 @@ const dom = {
   deleteSessionBtn: $("#deleteSessionBtn"),
   closeSessionBtn: $("#closeSessionBtn"),
   memberPicker: $("#memberPicker"),
-  newMemberName: $("#newMemberName"),
+  changeNicknameBtn: $("#changeNicknameBtn"),
   memberList: $("#memberList"),
   memberCountBadge: $("#memberCountBadge"),
   currentOrderCount: $("#currentOrderCount"),
@@ -33,6 +32,8 @@ const dom = {
   customFoodPrice: $("#customFoodPrice"),
   customFoodQty: $("#customFoodQty"),
   selectedFoods: $("#selectedFoods"),
+  joinOrderBtn: $("#joinOrderBtn"),
+  orderConfirmHint: $("#orderConfirmHint"),
   equalFields: $("#equalFields"),
   itemFields: $("#itemFields"),
   totalBillInput: $("#totalBillInput"),
@@ -71,13 +72,10 @@ const dom = {
   profileNicknameInput: $("#profileNicknameInput"),
   profileAuthHint: $("#profileAuthHint"),
   profileCancelBtn: $("#profileCancelBtn"),
-  googleSignInBtn: $("#googleSignInBtn"),
-  profileSignOutBtn: $("#profileSignOutBtn"),
   toast: $("#toast")
 };
 
 let supabaseClient = null;
-let authenticatedUser = null;
 let profileModalRequired = false;
 let remoteSessionIds = new Set();
 let remoteSyncTimer = null;
@@ -135,6 +133,7 @@ function makeMember(profile, index) {
     color: memberProfile.color || AVATAR_COLORS[index % AVATAR_COLORS.length],
     paid: false,
     paidAt: null,
+    orderConfirmedAt: null,
     selections: []
   };
 }
@@ -148,6 +147,7 @@ function normalizeSession(session) {
     member.profileId ||= null;
     member.selections = Array.isArray(member.selections) ? member.selections : [];
     member.paid = Boolean(member.paid);
+    member.orderConfirmedAt ||= null;
   });
   session.creatorMemberId ||= session.members[0]?.id || null;
   const legacyCreator = session.members.find((member) => member.id === session.creatorMemberId);
@@ -196,7 +196,7 @@ function loadState() {
       const sessions = saved.sessions.map(normalizeSession);
       return {
         sessions,
-        activeSessionId: saved.activeSessionId || sessions.find((session) => !session.archived)?.id || null,
+        activeSessionId: sessions.find((session) => !session.archived && session.status === "open")?.id || saved.activeSessionId || sessions.find((session) => !session.archived)?.id || null,
         selectedMemberId: saved.selectedMemberId || null,
         profile: normalizeProfile(saved.profile)
       };
@@ -233,31 +233,20 @@ function getSupabaseConfig() {
   return config;
 }
 
-function suggestedNickname(user = authenticatedUser) {
-  const metadata = user?.user_metadata || {};
-  const candidate = metadata.full_name || metadata.name || user?.email?.split("@")[0] || "";
-  return String(candidate).trim().slice(0, 30);
-}
-
 function renderProfileControl() {
   const profile = currentProfile();
   dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
   dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
   dom.profileName.textContent = profile?.nickname || "Chọn nickname";
-  dom.profileStatus.textContent = authenticatedUser ? "Google · đã đồng bộ" : profile ? "Nickname trên thiết bị này" : "Chưa thiết lập";
+  dom.profileStatus.textContent = profile ? "Nickname đã lưu" : "Chưa thiết lập";
 }
 
 function openProfileModal(required = !currentProfile()) {
   profileModalRequired = required;
   const profile = currentProfile();
-  dom.profileNicknameInput.value = profile?.nickname || suggestedNickname();
-  dom.profileAuthHint.textContent = authenticatedUser
-    ? "Tài khoản Google đã nhận diện. Hãy chọn nickname để lưu lâu dài vào Supabase."
-    : "Dùng nickname trên thiết bị này, hoặc đăng nhập Google để dùng lại trên mọi thiết bị.";
+  dom.profileNicknameInput.value = profile?.nickname || "";
+  dom.profileAuthHint.textContent = "Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.";
   dom.profileCancelBtn.hidden = !profile || required;
-  dom.googleSignInBtn.disabled = !supabaseClient;
-  dom.googleSignInBtn.title = supabaseClient ? "Đăng nhập bằng tài khoản Google" : "Hãy kết nối Supabase trước để dùng Google";
-  dom.profileSignOutBtn.hidden = !authenticatedUser;
   dom.profileModal.hidden = false;
   dom.profileModal.setAttribute("aria-hidden", "false");
   setTimeout(() => dom.profileNicknameInput.focus(), 20);
@@ -270,112 +259,36 @@ function closeProfileModal() {
   profileModalRequired = false;
 }
 
-async function syncProfileToSupabase(profile) {
-  if (!supabaseClient || !authenticatedUser) return;
-  const { error } = await supabaseClient.from(PROFILE_TABLE).upsert({
-    id: authenticatedUser.id,
-    nickname: profile.nickname,
-    avatar_color: profile.color,
-    avatar_url: authenticatedUser.user_metadata?.avatar_url || "",
-    updated_at: new Date().toISOString()
-  }, { onConflict: "id" });
-  if (error) throw error;
-}
-
-async function restoreAuthenticatedProfile(user) {
-  if (!user || !supabaseClient) return;
-  authenticatedUser = user;
-  const { data, error } = await supabaseClient
-    .from(PROFILE_TABLE)
-    .select("id, nickname, avatar_color, avatar_url, updated_at")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("Không thể tải hồ sơ Supabase", error);
-    renderProfileControl();
-    return;
-  }
-
-  if (data) {
-    appState.profile = normalizeProfile({
-      id: data.id,
-      nickname: data.nickname,
-      color: data.avatar_color,
-      avatarUrl: data.avatar_url,
-      provider: "google",
-      updatedAt: data.updated_at
-    });
-    appState.selectedMemberId = appState.profile.id;
-    saveState();
-    renderAll();
-    closeProfileModal();
-    return;
-  }
-
-  const localProfile = currentProfile();
-  appState.profile = normalizeProfile({
-    id: user.id,
-    nickname: localProfile?.nickname || suggestedNickname(user),
-    color: localProfile?.color || colorForIdentity(user.id),
-    avatarUrl: user.user_metadata?.avatar_url || "",
-    provider: "google"
-  });
-  appState.selectedMemberId = user.id;
-  saveState();
-  renderAll();
-  openProfileModal(true);
-}
-
-async function saveProfile(event) {
+function saveProfile(event) {
   event.preventDefault();
   const nickname = dom.profileNicknameInput.value.trim();
   if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
   const previous = currentProfile();
   const profile = normalizeProfile({
-    id: authenticatedUser?.id || previous?.id || id("profile"),
+    id: previous?.id || id("profile"),
     nickname,
-    color: previous?.color || colorForIdentity(authenticatedUser?.id || nickname),
-    avatarUrl: authenticatedUser?.user_metadata?.avatar_url || previous?.avatarUrl || "",
-    provider: authenticatedUser ? "google" : "nickname"
+    color: previous?.color || colorForIdentity(nickname),
+    provider: "nickname"
   });
-
-  try {
-    await syncProfileToSupabase(profile);
-  } catch (error) {
-    console.error("Không thể lưu hồ sơ Supabase", error);
-    return showToast("Chưa lưu được profile Google. Hãy chạy lại Supabase schema rồi thử lại.");
-  }
 
   appState.profile = profile;
   appState.selectedMemberId = profile.id;
+  appState.sessions.forEach((session) => {
+    if (session.creatorProfileId === profile.id || session.creatorMemberId === profile.id) {
+      session.creatorName = profile.nickname;
+      session.creatorColor = profile.color;
+    }
+    session.members.forEach((member) => {
+      if (member.profileId === profile.id || member.id === profile.id) {
+        member.name = profile.nickname;
+        member.color = profile.color;
+      }
+    });
+  });
   saveState();
   renderAll();
   closeProfileModal();
-  showToast(authenticatedUser ? "Đã lưu nickname vào tài khoản Google." : "Đã lưu nickname trên thiết bị này.");
-}
-
-async function signInWithGoogle() {
-  if (!supabaseClient) return showToast("Hãy kết nối Supabase trước khi đăng nhập Google.");
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
-  if (error) {
-    console.error("Không thể bắt đầu đăng nhập Google", error);
-    showToast("Không thể mở đăng nhập Google. Hãy kiểm tra Google provider trong Supabase.");
-  }
-}
-
-async function signOutProfile() {
-  if (supabaseClient && authenticatedUser) {
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) return showToast("Không thể đăng xuất Google. Hãy thử lại.");
-  }
-  authenticatedUser = null;
-  appState.profile = null;
-  appState.selectedMemberId = null;
-  saveState();
-  renderAll();
-  openProfileModal(true);
+  showToast("Đã lưu nickname trên thiết bị này.");
 }
 
 function queueRemoteSync() {
@@ -427,7 +340,11 @@ async function loadRemoteSessions() {
   if (data.length) {
     appState.sessions = data.map((row) => normalizeSession({ ...row.payload, id: row.id }));
     const activeExists = appState.sessions.some((session) => session.id === appState.activeSessionId && !session.archived);
-    if (!activeExists) appState.activeSessionId = appState.sessions.find((session) => !session.archived)?.id || null;
+    const prioritizedSessions = sortSessionsByPriority(appState.sessions.filter((session) => !session.archived));
+    const currentSession = appState.sessions.find((session) => session.id === appState.activeSessionId);
+    if (!activeExists || (prioritizedSessions[0] && sessionPriority(currentSession) > sessionPriority(prioritizedSessions[0]))) {
+      appState.activeSessionId = prioritizedSessions[0]?.id || null;
+    }
     appState.selectedMemberId = currentProfile()?.id || null;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
   } else if (appState.sessions.length) {
@@ -463,17 +380,6 @@ async function initializeSupabase() {
   try {
     setConnectionNote("Đang kết nối Supabase...");
     supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
-        restoreAuthenticatedProfile(session.user).catch((error) => console.warn("Không thể khôi phục profile", error));
-      }
-      if (event === "SIGNED_OUT") {
-        authenticatedUser = null;
-        renderProfileControl();
-      }
-    });
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (user) await restoreAuthenticatedProfile(user);
     await loadRemoteSessions();
     subscribeToRemoteSessions();
     renderAll();
@@ -492,7 +398,7 @@ function activeSession() {
   const availableSessions = appState.sessions.filter((item) => !item.archived);
   let session = availableSessions.find((item) => item.id === appState.activeSessionId);
   if (!session) {
-    session = availableSessions.find((item) => item.status !== "completed") || availableSessions[0];
+    session = sortSessionsByPriority(availableSessions)[0];
     appState.activeSessionId = session?.id || null;
   }
   return session;
@@ -536,6 +442,23 @@ function initials(name) {
 
 function statusLabel(status) {
   return ({ open: "Đang chọn món", locked: "Đã chốt", completed: "Hoàn tất" })[status] || status;
+}
+
+function sessionTone(session) {
+  if (session.archived) return "archived";
+  return session.status === "locked" ? "locked" : session.status === "completed" ? "completed" : "open";
+}
+
+function sessionPriority(session) {
+  return ({ open: 0, locked: 1, completed: 2, archived: 3 })[sessionTone(session)] ?? 4;
+}
+
+function sortSessionsByPriority(sessions) {
+  return [...sessions].sort((left, right) => {
+    const priorityDifference = sessionPriority(left) - sessionPriority(right);
+    if (priorityDifference) return priorityDifference;
+    return new Date(right.createdAt) - new Date(left.createdAt);
+  });
 }
 
 function splitExact(total, count) {
@@ -625,13 +548,13 @@ function renderDashboard() {
   dom.todayLabel.textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long" }).format(today);
 
   const visibleSessions = appState.sessions.filter((item) => !item.archived);
-  const openSessions = visibleSessions.filter((item) => item.status !== "completed");
-  const lockedSessions = visibleSessions.filter((item) => isLocked(item));
-  const totalOwed = openSessions.reduce((total, item) => total + (totalForSession(item) - paidForSession(item)), 0);
+  const openSessions = visibleSessions.filter((item) => item.status === "open");
+  const lockedSessions = visibleSessions.filter((item) => item.status === "locked");
+  const totalOwed = lockedSessions.reduce((total, item) => total + (totalForSession(item) - paidForSession(item)), 0);
   const paidCount = session ? session.members.filter((member) => member.paid).length : 0;
   const peopleCount = session?.members.length || 0;
   const statCards = [
-    ["Phiên đang hoạt động", openSessions.length, openSessions.length ? "Có đơn đang cần xử lý" : "Chưa có phiên nào"],
+    ["Phiên đang mở", openSessions.length, openSessions.length ? "Ưu tiên hiển thị đầu tiên" : "Chưa có phiên cần chọn món"],
     ["Cần chuyển lại", money(totalOwed), totalOwed ? "Tổng tiền nhóm chưa thanh toán" : "Mọi khoản đã đủ"],
     ["Đã chuyển trong phiên", `${paidCount}/${peopleCount}`, peopleCount ? "Cập nhật theo thời gian thực" : "Chưa có thành viên"],
     ["Phiên đã chốt", lockedSessions.length, "Tính từ lịch sử đã lưu"]
@@ -641,22 +564,24 @@ function renderDashboard() {
   `).join("");
 
   if (!session) {
+    dom.activeSessionSummary.className = "card active-session-summary";
     dom.activeSessionSummary.innerHTML = `<div class="active-summary-top"><div><p class="eyebrow">PHIÊN ĐANG MỞ</p><h3 class="active-summary-name">Chưa có phiên đặt đồ</h3><p class="active-summary-restaurant">Bắt đầu một phiên mới cho cả nhóm.</p></div></div><div class="summary-footer"><span></span><button class="text-button" data-open-modal="true">Tạo phiên →</button></div>`;
   } else {
     const payments = calculatePayments(session);
-    const statusClass = session.status === "open" ? "" : session.status === "locked" ? "locked" : "done";
+    const tone = sessionTone(session);
+    dom.activeSessionSummary.className = `card active-session-summary session-surface tone-${tone}`;
     dom.activeSessionSummary.innerHTML = `
       <div class="active-summary-top">
-        <div><p class="eyebrow">PHIÊN ĐANG MỞ</p><h3 class="active-summary-name">${escapeHtml(session.title)}</h3><p class="active-summary-restaurant">${escapeHtml(session.restaurant)} · Chốt lúc ${formatDeadline(session.deadline)}</p></div>
-        <span class="status-chip ${statusClass}">${statusLabel(session.status)}</span>
+        <div><p class="eyebrow">${tone === "open" ? "ƯU TIÊN XỬ LÝ" : "PHIÊN ĐANG XEM"}</p><h3 class="active-summary-name">${escapeHtml(session.title)}</h3><p class="active-summary-restaurant">${escapeHtml(session.restaurant)} · Chốt lúc ${formatDeadline(session.deadline)}</p></div>
+        <span class="status-chip tone-${tone}">${tone === "archived" ? "Lưu trữ" : statusLabel(session.status)}</span>
       </div>
       <div class="summary-amounts"><div><span>Tổng cần thanh toán</span><strong>${money(totalForSession(session))}</strong></div><div><span>Còn chờ</span><strong>${money(totalForSession(session) - paidForSession(session))}</strong></div></div>
       <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session">Mở phiên →</button></div>`;
   }
 
-  const latest = [...visibleSessions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 4);
+  const latest = sortSessionsByPriority(appState.sessions).slice(0, 6);
   dom.miniHistory.innerHTML = latest.length ? latest.map((item) => `
-    <div class="mini-history-row"><span class="history-icon">${item.status === "completed" ? "✓" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${shortDate(item.createdAt)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
+    <div class="mini-history-row session-row tone-${sessionTone(item)}"><span class="history-icon">${item.status === "completed" ? "✓" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
   `).join("") : `<div class="history-empty">Chưa có dữ liệu.</div>`;
 }
 
@@ -675,7 +600,10 @@ function renderSession() {
     dom.selectedFoods.innerHTML = "";
     dom.pricingList.innerHTML = "";
     dom.paymentMembers.innerHTML = "";
-    [dom.memberPicker, dom.newMemberName, dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput, dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput, dom.qrFileInput].forEach((input) => { input.disabled = true; });
+    dom.joinOrderBtn.disabled = true;
+    dom.joinOrderBtn.textContent = "✓ Tham gia để đặt món";
+    dom.orderConfirmHint.textContent = "Tạo phiên mới để bắt đầu.";
+    [dom.memberPicker, dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput, dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput, dom.qrFileInput].forEach((input) => { input.disabled = true; });
     dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
     return;
   }
@@ -687,16 +615,16 @@ function renderSession() {
   const selectedCount = member?.selections.reduce((total, item) => total + item.quantity, 0) || 0;
 
   dom.sessionSwitcher.disabled = false;
-  dom.sessionSwitcher.innerHTML = appState.sessions.filter((item) => !item.archived).map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
+  dom.sessionSwitcher.innerHTML = sortSessionsByPriority(appState.sessions.filter((item) => !item.archived)).map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "■"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
   dom.sessionMeta.textContent = `${session.restaurant} · Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
   dom.memberCountBadge.textContent = `${session.members.length} người`;
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
   dom.billingModeBadge.textContent = session.splitMethod === "equal" ? "Chia đều" : "Theo món";
-  dom.paymentLockLabel.textContent = locked ? "Đã chốt" : "Đang mở";
-  dom.paymentLockLabel.style.color = locked ? "#218958" : "#76817d";
-  dom.paymentLockLabel.style.borderColor = locked ? "#bce4c9" : "#dde3de";
+  dom.paymentLockLabel.textContent = session.status === "open" ? "Đang mở" : session.status === "locked" ? "Đã chốt" : "Hoàn tất";
+  dom.paymentLockLabel.style.color = session.status === "open" ? "#16834f" : session.status === "locked" ? "#2563b8" : "#7a1f40";
+  dom.paymentLockLabel.style.borderColor = session.status === "open" ? "#a9ddbb" : session.status === "locked" ? "#b7d3f4" : "#e4b7c6";
 
-  dom.statusNotice.classList.toggle("show", true);
+  dom.statusNotice.className = `notice-strip show tone-${sessionTone(session)}`;
   if (session.status === "open") {
     dom.statusNotice.innerHTML = member
       ? `Bạn đang tham gia bằng <strong>${escapeHtml(currentProfile()?.nickname || "nickname")}</strong>. Tổng tiền tự cập nhật theo số người đã tham gia.`
@@ -717,15 +645,15 @@ function renderSession() {
   const profile = currentProfile();
   dom.memberPicker.disabled = true;
   dom.memberPicker.innerHTML = `<option>${escapeHtml(profile?.nickname || "Chưa có nickname")}${member ? " · đã tham gia phiên" : " · chưa tham gia"}</option>`;
-  dom.newMemberName.value = profile?.nickname || "";
-  dom.newMemberName.disabled = !profile || locked || Boolean(member);
-  $("#addMemberBtn").disabled = !profile || locked || Boolean(member);
-  $("#addMemberBtn").textContent = member ? "Đã tham gia" : "Tham gia";
+  const isOrderConfirmed = Boolean(member?.orderConfirmedAt);
+  dom.joinOrderBtn.disabled = !profile || locked || (Boolean(member) && (!selectedCount || isOrderConfirmed));
+  dom.joinOrderBtn.textContent = !profile ? "Tạo nickname để đặt món" : !member ? "✓ Tham gia để đặt món" : isOrderConfirmed ? "✓ Đã xác nhận món" : selectedCount ? `✓ Xác nhận ${selectedCount} phần đã chọn` : "Chọn món để xác nhận";
+  dom.orderConfirmHint.textContent = !profile ? "Hãy tạo nickname trước." : !member ? "Bấm một lần để tham gia phiên bằng nickname đã lưu." : isOrderConfirmed ? "Món của bạn đã được ghi nhận. Nếu chỉnh món, hãy xác nhận lại." : selectedCount ? "Kiểm tra món rồi bấm xác nhận để người tạo dễ chốt đơn." : "Hãy tick ít nhất một món trước khi xác nhận.";
   const creatorIsParticipant = session.members.some((item) => item.profileId === session.creatorProfileId || item.id === session.creatorMemberId);
   const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý món, giá và thanh toán</small></span></div>`;
   const participantRows = session.members.map((item) => {
     const count = item.selections.reduce((total, selection) => total + selection.quantity, 0);
-    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${item.id === session.creatorMemberId ? '<small>(người tạo)</small>' : ""}</span><small>${count ? `${count} phần đã chọn` : "Chưa chọn món"}</small></span>${!locked && isCreator && session.members.length > 1 && item.id !== member?.id ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</div>`;
+    return `<div class="member-row ${item.id === member?.id ? "current" : ""}"><span class="avatar" style="background:${item.color}">${escapeHtml(initials(item.name))}</span><span><span class="member-name">${escapeHtml(item.name)} ${item.id === session.creatorMemberId ? '<small>(người tạo)</small>' : ""}</span><small>${item.orderConfirmedAt ? `✓ Đã xác nhận ${count} phần` : count ? `${count} phần chờ xác nhận` : "Chưa chọn món"}</small></span>${!locked && isCreator && session.members.length > 1 && item.id !== member?.id ? `<button class="remove-member" data-remove-member="${item.id}" title="Xóa ${escapeHtml(item.name)}">×</button>` : ""}</div>`;
   }).join("");
   dom.memberList.innerHTML = creatorRow + participantRows;
 
@@ -735,7 +663,7 @@ function renderSession() {
     return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${escapeHtml(menuItem.note || "")} · ${money(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
   }).join("");
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
-  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Bấm “Tham gia” để chọn món bằng nickname đã lưu."}</p>`;
+  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Bấm nút “Tham gia để đặt món” ngay phía trên để bắt đầu."}</p>`;
 
   $$('input[name="splitMethod"]').forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked || !isCreator; });
   dom.equalFields.classList.toggle("visible", session.splitMethod === "equal");
@@ -806,8 +734,24 @@ function renderHistory() {
   ].map(([label, value]) => `<article class="history-stat"><p>${label}</p><strong>${value}</strong></article>`).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row"><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip ${session.status === "open" ? "" : session.status === "locked" ? "locked" : "done"}">${session.archived ? "Lưu trữ" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)}"><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
+}
+
+function markOrderAsChanged(member) {
+  if (member) member.orderConfirmedAt = null;
+}
+
+function confirmCurrentOrder() {
+  const session = activeSession();
+  const member = selectedMember(session);
+  if (!session || !member || isLocked(session)) return;
+  const quantity = member.selections.reduce((total, item) => total + Number(item.quantity || 0), 0);
+  if (!quantity) return showToast("Hãy chọn ít nhất một món trước khi xác nhận.");
+  member.orderConfirmedAt = new Date().toISOString();
+  saveState();
+  renderAll();
+  showToast(`Đã xác nhận ${quantity} phần của bạn.`);
 }
 
 function addMenuSelection(menuId) {
@@ -817,6 +761,7 @@ function addMenuSelection(menuId) {
   const menuItem = session.menu.find((item) => item.id === menuId);
   if (!menuItem) return;
   member.selections.push({ id: id("pick"), sourceMenuId: menuItem.id, name: menuItem.name, price: menuItem.price, quantity: 1, custom: false });
+  markOrderAsChanged(member);
   saveState(); renderAll();
 }
 
@@ -825,6 +770,7 @@ function removeSelection(selectionId) {
   const member = selectedMember(session);
   if (!member || isLocked(session)) return;
   member.selections = member.selections.filter((selection) => selection.id !== selectionId);
+  markOrderAsChanged(member);
   saveState(); renderAll();
 }
 
@@ -835,6 +781,7 @@ function setMenuQuantity(menuId, value) {
   if (!selection || isLocked(session)) return;
   if (value < 1) return removeSelection(selection.id);
   selection.quantity = Math.max(1, Math.min(20, Number(value) || 1));
+  markOrderAsChanged(member);
   saveState(); renderAll();
 }
 
@@ -1015,8 +962,6 @@ function bindEvents() {
   dom.profileButton.addEventListener("click", () => openProfileModal(false));
   dom.profileForm.addEventListener("submit", saveProfile);
   dom.profileCancelBtn.addEventListener("click", closeProfileModal);
-  dom.googleSignInBtn.addEventListener("click", signInWithGoogle);
-  dom.profileSignOutBtn.addEventListener("click", signOutProfile);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dom.sessionModal.hidden) closeNewSessionModal();
     if (event.key === "Escape" && !dom.profileModal.hidden) closeProfileModal();
@@ -1036,7 +981,11 @@ function bindEvents() {
     appState.selectedMemberId = currentProfile()?.id || null;
     saveState(); renderAll();
   });
-  $("#addMemberBtn").addEventListener("click", joinWithNickname);
+  dom.changeNicknameBtn.addEventListener("click", () => openProfileModal(false));
+  dom.joinOrderBtn.addEventListener("click", () => {
+    if (selectedMember()) confirmCurrentOrder();
+    else joinWithNickname();
+  });
   dom.memberList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove-member]");
     if (!button) return;
@@ -1056,6 +1005,7 @@ function bindEvents() {
     if (checkbox) {
       const session = activeSession();
       const member = selectedMember(session);
+      if (!member) return;
       const selection = member.selections.find((item) => item.sourceMenuId === checkbox.dataset.menuCheckbox);
       if (checkbox.checked && !selection) addMenuSelection(checkbox.dataset.menuCheckbox);
       if (!checkbox.checked && selection) removeSelection(selection.id);
@@ -1079,6 +1029,7 @@ function bindEvents() {
     const quantity = Number(dom.customFoodQty.value || 1);
     if (!name || price < 0) return showToast("Hãy nhập tên và giá món khác.");
     member.selections.push({ id: id("pick"), sourceMenuId: null, name, price, quantity, custom: true });
+    markOrderAsChanged(member);
     dom.customFoodForm.reset(); dom.customFoodQty.value = 1;
     saveState(); renderAll(); showToast("Đã thêm món khác.");
   });
@@ -1105,11 +1056,19 @@ function bindEvents() {
       const menuItem = session.menu.find((item) => item.id === input.dataset.menuPrice);
       if (menuItem) {
         menuItem.price = price;
-        session.members.forEach((member) => member.selections.filter((selection) => selection.sourceMenuId === menuItem.id).forEach((selection) => { selection.price = price; }));
+        session.members.forEach((member) => {
+          const affectedSelections = member.selections.filter((selection) => selection.sourceMenuId === menuItem.id);
+          affectedSelections.forEach((selection) => { selection.price = price; });
+          if (affectedSelections.length) markOrderAsChanged(member);
+        });
       }
     }
     if (input.dataset.selectionPrice) {
-      session.members.forEach((member) => member.selections.filter((selection) => selection.id === input.dataset.selectionPrice).forEach((selection) => { selection.price = price; }));
+      session.members.forEach((member) => {
+        const affectedSelections = member.selections.filter((selection) => selection.id === input.dataset.selectionPrice);
+        affectedSelections.forEach((selection) => { selection.price = price; });
+        if (affectedSelections.length) markOrderAsChanged(member);
+      });
     }
     saveState(); renderAll();
   });
@@ -1162,6 +1121,8 @@ function bindEvents() {
     if (!isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể chốt tổng tiền.");
     if (session.status !== "open") return showToast("Số tiền của phiên này đã được chốt.");
     if (!session.members.length) return showToast("Cần ít nhất một thành viên.");
+    const unconfirmedMembers = session.members.filter((member) => !member.orderConfirmedAt);
+    if (unconfirmedMembers.length) return showToast(`Còn ${unconfirmedMembers.length} người chưa xác nhận món.`);
     const payments = calculatePayments(session);
     if (totalForSession(session) <= 0) return showToast(session.splitMethod === "equal" ? "Hãy nhập tổng hóa đơn trước khi chốt." : "Hãy thêm món hoặc nhập phí phát sinh trước khi chốt.");
     if (payments.some((payment) => payment.amount < 0)) return showToast("Giảm giá đang lớn hơn tiền món của một thành viên. Hãy kiểm tra lại trước khi chốt.");

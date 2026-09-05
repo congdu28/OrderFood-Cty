@@ -114,12 +114,8 @@
               <label class="field-label" for="memberPicker">Tài khoản đang dùng</label>
               <div class="select-wrap"><select id="memberPicker"></select></div>
               <div class="join-nickname">
-                <label class="field-label" for="newMemberName">Tham gia bằng nickname của bạn</label>
-                <div class="inline-add">
-                  <input id="newMemberName" type="text" placeholder="Tạo nickname ở bước đầu" maxlength="30" readonly />
-                  <button class="join-button" id="addMemberBtn" type="button">Tham gia</button>
-                </div>
-                <p>Nickname được dùng lại cho các phiên sau. Bạn chỉ cần bấm Tham gia một lần trong mỗi phiên.</p>
+                <p>Nickname được lưu trên trình duyệt này và tự dùng lại ở các phiên sau.</p>
+                <button class="text-button" id="changeNicknameBtn" type="button">Đổi nickname</button>
               </div>
               <div class="member-list" id="memberList"></div>
             </article>
@@ -130,6 +126,10 @@
                 <span class="badge accent" id="currentOrderCount">0 món</span>
               </div>
               <p class="hint-text">Chọn món có sẵn, điều chỉnh số lượng hoặc thêm món riêng.</p>
+              <div class="order-confirm-bar" id="orderConfirmBar">
+                <button class="primary-button" id="joinOrderBtn" type="button">✓ Tham gia để đặt món</button>
+                <span id="orderConfirmHint">Dùng nickname đã lưu, không cần nhập lại.</span>
+              </div>
               <div class="food-options" id="foodOptions"></div>
 
               <form class="custom-food-form" id="customFoodForm">
@@ -232,15 +232,12 @@
         <p class="modal-intro">Nickname sẽ tự điền khi bạn tham gia các phiên đặt đồ sau này.</p>
         <form id="profileForm">
           <label>Nickname<input id="profileNicknameInput" type="text" placeholder="Ví dụ: Mèo đói" required maxlength="30" autocomplete="nickname" /></label>
-          <p class="profile-helper" id="profileAuthHint">Dùng nickname trên thiết bị này, hoặc đăng nhập Google để dùng lại trên mọi thiết bị.</p>
+          <p class="profile-helper" id="profileAuthHint">Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.</p>
           <div class="modal-actions">
             <button class="secondary-button" id="profileCancelBtn" type="button" hidden>Hủy</button>
             <button class="primary-button modal-submit" type="submit">Lưu nickname →</button>
           </div>
         </form>
-        <div class="profile-divider"><span>hoặc</span></div>
-        <button class="google-signin-button" id="googleSignInBtn" type="button"><span>G</span> Tiếp tục với Google</button>
-        <button class="text-button profile-signout" id="profileSignOutBtn" type="button" hidden>Đăng xuất Google</button>
       </section>
     </div>
 
