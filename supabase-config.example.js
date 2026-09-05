@@ -4,6 +4,5 @@
  */
 window.SUPABASE_CONFIG = {
   url: "https://fsqwwaewqlupolhcapgz.supabase.co",
-  publishableKey: "sb_publishable_ZSY-Dptu6nFP6DtobXtkLA_PGTnXeNx",
-  adminNickname: "admin"
+  publishableKey: "sb_publishable_ZSY-Dptu6nFP6DtobXtkLA_PGTnXeNx"
 };

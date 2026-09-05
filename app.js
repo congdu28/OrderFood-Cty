@@ -2,7 +2,9 @@ const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
 const SESSION_STATUSES = ["open", "locked", "completed"];
-const DEFAULT_ADMIN_NICKNAME = "admin";
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD_HASH = "e5125e68c312a525f7dea5dcb03997cf6740b0d743f199108cb1d7e7e4231849";
+const ADMIN_AUTH_STORAGE_KEY = "an-chung-admin-auth-v1";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -76,6 +78,17 @@ const dom = {
   profileNicknameInput: $("#profileNicknameInput"),
   profileAuthHint: $("#profileAuthHint"),
   profileCancelBtn: $("#profileCancelBtn"),
+  adminLoginBtn: $("#adminLoginBtn"),
+  adminLogoutBtn: $("#adminLogoutBtn"),
+  adminStatus: $("#adminStatus"),
+  adminModal: $("#adminModal"),
+  adminLoginForm: $("#adminLoginForm"),
+  adminUsernameInput: $("#adminUsernameInput"),
+  adminPasswordInput: $("#adminPasswordInput"),
+  adminLoginHint: $("#adminLoginHint"),
+  adminCancelBtn: $("#adminCancelBtn"),
+  closeAdminModalBtn: $("#closeAdminModalBtn"),
+  adminSubmitBtn: $("#adminSubmitBtn"),
   toast: $("#toast")
 };
 
@@ -86,6 +99,7 @@ let remoteSyncTimer = null;
 let appState = loadState();
 let currentView = "dashboard";
 let toastTimer;
+let adminAuthenticated = readAdminSession();
 
 function id(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -112,12 +126,32 @@ function currentProfile() {
   return normalizeProfile(appState.profile);
 }
 
-function globalAdminNickname() {
-  return String(window.SUPABASE_CONFIG?.adminNickname || DEFAULT_ADMIN_NICKNAME).trim().toLocaleLowerCase("vi-VN");
+function readAdminSession() {
+  try {
+    return sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "authenticated";
+  } catch (error) {
+    return false;
+  }
 }
 
-function isGlobalAdmin(profile = currentProfile()) {
-  return Boolean(profile?.nickname && profile.nickname.toLocaleLowerCase("vi-VN") === globalAdminNickname());
+function setAdminSession(authenticated) {
+  adminAuthenticated = Boolean(authenticated);
+  try {
+    if (adminAuthenticated) sessionStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "authenticated");
+    else sessionStorage.removeItem(ADMIN_AUTH_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Không thể lưu trạng thái đăng nhập quản trị", error);
+  }
+}
+
+function isGlobalAdmin() {
+  return adminAuthenticated;
+}
+
+async function hashAdminPassword(password) {
+  const encoded = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function localDateTimeValue(date) {
@@ -254,14 +288,21 @@ function renderProfileControl() {
   dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
   dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
   dom.profileName.textContent = profile?.nickname || "Chọn nickname";
-  dom.profileStatus.textContent = profile ? (isGlobalAdmin(profile) ? "ADMIN toàn trang" : "Nickname đã lưu") : "Chưa thiết lập";
+  dom.profileStatus.textContent = profile ? (isGlobalAdmin() ? "ADMIN đã đăng nhập" : "Nickname đã lưu") : "Chưa thiết lập";
+}
+
+function renderAdminControl() {
+  const authenticated = isGlobalAdmin();
+  dom.adminLoginBtn.hidden = authenticated;
+  dom.adminLogoutBtn.hidden = !authenticated;
+  dom.adminStatus.textContent = authenticated ? "Đã mở toàn quyền trang" : "Chỉ dành cho quản trị";
 }
 
 function openProfileModal(required = !currentProfile()) {
   profileModalRequired = required;
   const profile = currentProfile();
   dom.profileNicknameInput.value = profile?.nickname || "";
-  dom.profileAuthHint.textContent = `Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website. Nickname “${globalAdminNickname()}” có quyền ADMIN toàn trang.`;
+  dom.profileAuthHint.textContent = "Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.";
   dom.profileCancelBtn.hidden = !profile || required;
   dom.profileModal.hidden = false;
   dom.profileModal.setAttribute("aria-hidden", "false");
@@ -273,6 +314,57 @@ function closeProfileModal() {
   dom.profileModal.hidden = true;
   dom.profileModal.setAttribute("aria-hidden", "true");
   profileModalRequired = false;
+}
+
+function openAdminLoginModal() {
+  if (isGlobalAdmin()) return showToast("Admin đang đăng nhập trên trình duyệt này.");
+  dom.adminUsernameInput.value = "";
+  dom.adminPasswordInput.value = "";
+  dom.adminLoginHint.textContent = "Đăng nhập để quản lý mọi phiên và quyền trên trang.";
+  dom.adminLoginHint.classList.remove("is-error");
+  dom.adminModal.hidden = false;
+  dom.adminModal.setAttribute("aria-hidden", "false");
+  setTimeout(() => dom.adminUsernameInput.focus(), 20);
+}
+
+function closeAdminLoginModal() {
+  dom.adminModal.hidden = true;
+  dom.adminModal.setAttribute("aria-hidden", "true");
+}
+
+async function submitAdminLogin(event) {
+  event.preventDefault();
+  const username = dom.adminUsernameInput.value.trim().toLocaleLowerCase("vi-VN");
+  const password = dom.adminPasswordInput.value;
+  dom.adminSubmitBtn.disabled = true;
+  dom.adminLoginHint.classList.remove("is-error");
+  dom.adminLoginHint.textContent = "Đang kiểm tra thông tin quản trị...";
+  try {
+    const passwordHash = await hashAdminPassword(password);
+    if (username !== ADMIN_USERNAME || passwordHash !== ADMIN_PASSWORD_HASH) {
+      dom.adminLoginHint.textContent = "Tài khoản hoặc mật khẩu quản trị chưa đúng.";
+      dom.adminLoginHint.classList.add("is-error");
+      dom.adminPasswordInput.select();
+      return;
+    }
+    setAdminSession(true);
+    closeAdminLoginModal();
+    renderAll();
+    showToast("Đăng nhập Admin thành công. Bạn có toàn quyền trên trang.");
+  } catch (error) {
+    console.error("Không thể xác thực tài khoản quản trị", error);
+    dom.adminLoginHint.textContent = "Trình duyệt không hỗ trợ xác thực bảo mật. Hãy thử trình duyệt mới hơn.";
+    dom.adminLoginHint.classList.add("is-error");
+  } finally {
+    dom.adminSubmitBtn.disabled = false;
+  }
+}
+
+function logoutAdmin() {
+  if (!isGlobalAdmin()) return;
+  setAdminSession(false);
+  renderAll();
+  showToast("Đã đăng xuất tài khoản Admin.");
 }
 
 function saveProfile(event) {
@@ -596,6 +688,7 @@ function showSessionsByStatus(status) {
 }
 
 function renderAll() {
+  renderAdminControl();
   renderProfileControl();
   renderDashboard();
   renderSession();
@@ -1109,9 +1202,16 @@ function bindEvents() {
   dom.profileButton.addEventListener("click", () => openProfileModal(false));
   dom.profileForm.addEventListener("submit", saveProfile);
   dom.profileCancelBtn.addEventListener("click", closeProfileModal);
+  dom.adminLoginBtn.addEventListener("click", openAdminLoginModal);
+  dom.adminLogoutBtn.addEventListener("click", logoutAdmin);
+  dom.adminLoginForm.addEventListener("submit", submitAdminLogin);
+  dom.adminCancelBtn.addEventListener("click", closeAdminLoginModal);
+  dom.closeAdminModalBtn.addEventListener("click", closeAdminLoginModal);
+  dom.adminModal.addEventListener("click", (event) => { if (event.target === dom.adminModal) closeAdminLoginModal(); });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dom.sessionModal.hidden) closeNewSessionModal();
     if (event.key === "Escape" && !dom.profileModal.hidden) closeProfileModal();
+    if (event.key === "Escape" && !dom.adminModal.hidden) closeAdminLoginModal();
   });
   dom.newSessionForm.addEventListener("submit", createSession);
   dom.addCreateMenuBtn.addEventListener("click", () => {
