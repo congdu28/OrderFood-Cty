@@ -421,6 +421,7 @@ h3 { font-size: 19px; }
 .active-session-summary.session-surface.tone-open .summary-footer .text-button { color: #245e9d; }
 .active-session-summary.session-surface.tone-locked .summary-footer .text-button { color: #1d4e87; }
 .active-session-summary.session-surface.tone-completed .summary-footer .text-button { color: #126c39; }
+.active-session-summary .summary-footer .text-button { white-space: nowrap; }
 .active-session-summary.session-surface.tone-open { border-width: 3px; border-color: #4f8fd5; background: linear-gradient(135deg, #dcecff, #f7fbff); box-shadow: 0 14px 32px rgba(47, 105, 177, .22); }
 .active-session-summary.session-surface.tone-locked { border-width: 3px; border-color: #123f76; box-shadow: 0 14px 34px rgba(28, 67, 118, .3); }
 .mini-history-row.session-row.tone-open { border-left: 4px solid #4f8fd5; box-shadow: 0 5px 14px rgba(47, 105, 177, .1); }
@@ -445,6 +446,7 @@ h3 { font-size: 19px; }
   .sidebar.mobile-open .admin-login-button, .sidebar.mobile-open .admin-logout-button { width: 100%; height: auto; justify-content: flex-start; padding: 10px 11px; }
   .sidebar.mobile-open .admin-label { display: block; }
   .sidebar.mobile-open .admin-status { display: block; }
+  .active-session-summary .summary-footer .text-button { font-size: 12px; padding: 9px 11px; }
 }
 
 /* Tăng nhẹ độ rõ cho các nội dung dạng span/small trong vùng thao tác */

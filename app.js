@@ -554,6 +554,14 @@ function money(value) {
   return `${new Intl.NumberFormat("vi-VN").format(Math.round(Number(value) || 0))}đ`;
 }
 
+function hasPrice(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function priceLabel(value) {
+  return hasPrice(value) ? money(value) : "Chưa có giá";
+}
+
 function shortDate(value) {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
@@ -750,7 +758,7 @@ function renderDashboard() {
         <span class="status-chip tone-${tone}">${tone === "archived" ? "Lưu trữ" : statusLabel(session.status)}</span>
       </div>
       <div class="summary-amounts"><div><span>Tổng cần thanh toán</span><strong>${money(totalForSession(session))}</strong></div><div><span>Còn chờ</span><strong>${money(totalForSession(session) - paidForSession(session))}</strong></div></div>
-      <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session" data-open-dashboard-session="${session.id}">Mở phiên →</button></div>`;
+      <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session" data-open-dashboard-session="${session.id}">Tham Gia Đặt Món Ngay →</button></div>`;
   }
 
   const latest = [
@@ -846,11 +854,11 @@ function renderSession() {
   const selectedMenuIds = new Set(member?.selections.filter((item) => !item.custom).map((item) => item.sourceMenuId));
   dom.foodOptions.innerHTML = session.menu.map((menuItem) => {
     const selection = member?.selections.find((item) => item.sourceMenuId === menuItem.id);
-    return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${escapeHtml(menuItem.note || "")} · ${money(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
+    return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${menuItem.note ? `${escapeHtml(menuItem.note)} · ` : ""}${priceLabel(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
   }).join("");
   dom.sharedMenuForm.querySelectorAll("input, button").forEach((element) => { element.disabled = session.status !== "open"; });
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
-  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Tick một món ở phía trên để bắt đầu đặt."}</p>`;
+  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${hasPrice(item.price) ? money(item.price * item.quantity) : "Chưa có giá"}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Tick một món ở phía trên để bắt đầu đặt."}</p>`;
 
   $$("#equalSplitOption, #itemSplitOption").forEach((option) => { option.dataset.noEdit = String(!canManage && !locked); });
   $$("input[name=\"splitMethod\"]").forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked; });
@@ -897,7 +905,7 @@ function renderSession() {
 function selectionDetailsMarkup(member) {
   const selections = member?.selections || [];
   if (!selections.length) return `<span class="order-detail-empty">Chưa chọn món</span>`;
-  return selections.map((selection) => `<div class="order-detail-line"><span>${escapeHtml(selection.name)}${selection.custom ? ' <em>Món khác</em>' : ""} <small>× ${Number(selection.quantity || 0)}</small></span><b>${money(Number(selection.price || 0) * Number(selection.quantity || 0))}</b></div>`).join("");
+  return selections.map((selection) => `<div class="order-detail-line"><span>${escapeHtml(selection.name)}${selection.custom ? ' <em>Món khác</em>' : ""} <small>× ${Number(selection.quantity || 0)}</small></span><b>${hasPrice(selection.price) ? money(Number(selection.price) * Number(selection.quantity || 0)) : "Chưa có giá"}</b></div>`).join("");
 }
 
 function renderOrderBreakdown(session) {
@@ -1035,7 +1043,7 @@ async function uploadQrToSupabase(session, file) {
 }
 
 function createMenuRowMarkup(menuItem = {}) {
-  return `<div class="create-menu-row"><input type="text" data-draft-menu-name placeholder="Tên món" maxlength="60" value="${escapeHtml(menuItem.name || "")}" /><input type="number" data-draft-menu-price min="0" step="1000" placeholder="Giá (đ)" value="${Number.isFinite(menuItem.price) ? menuItem.price : ""}" /><button class="remove-menu-row" type="button" data-remove-draft-menu title="Bỏ món">×</button></div>`;
+  return `<div class="create-menu-row"><input type="text" data-draft-menu-name placeholder="Tên món" maxlength="60" value="${escapeHtml(menuItem.name || "")}" /><input type="number" data-draft-menu-price min="0" step="1000" placeholder="Giá (nếu có)" value="${Number.isFinite(menuItem.price) ? menuItem.price : ""}" /><button class="remove-menu-row" type="button" data-remove-draft-menu title="Bỏ món">×</button></div>`;
 }
 
 function renderCreateMenuRows(menu = defaultMenu()) {
@@ -1066,15 +1074,15 @@ function collectDraftMenu() {
     const priceText = row.querySelector("[data-draft-menu-price]").value;
     if (!name && !priceText) continue;
     const normalizedName = name.toLocaleLowerCase("vi-VN");
-    const price = Number(priceText);
-    if (!name || priceText === "" || !Number.isFinite(price) || price < 0) {
-      return { error: "Mỗi món cần có đầy đủ tên và giá hợp lệ." };
+    const price = priceText.trim() === "" ? null : Number(priceText);
+    if (!name || (priceText.trim() !== "" && (!Number.isFinite(price) || price < 0))) {
+      return { error: "Mỗi món cần có tên; giá có thể bổ sung sau." };
     }
     if (names.has(normalizedName)) return { error: "Tên món không được trùng trong cùng một phiên." };
     names.add(normalizedName);
     menu.push({ id: id("menu"), name, price, note: "" });
   }
-  if (!menu.length) return { error: "Hãy thêm ít nhất một món kèm giá trước khi tạo phiên." };
+  if (!menu.length) return { error: "Hãy thêm ít nhất một món trước khi tạo phiên." };
   return { menu };
 }
 
@@ -1354,8 +1362,9 @@ function bindEvents() {
     if (!session || session.status !== "open") return showToast("Chỉ có thể thêm món khi phiên đang mở.");
     if (!currentProfile()) return openProfileModal(true);
     const name = dom.sharedMenuName.value.trim();
-    const price = Number(dom.sharedMenuPrice.value);
-    if (!name || !Number.isFinite(price) || price < 0) return showToast("Hãy nhập tên món và giá hợp lệ.");
+    const priceText = dom.sharedMenuPrice.value.trim();
+    const price = priceText === "" ? null : Number(priceText);
+    if (!name || (priceText !== "" && (!Number.isFinite(price) || price < 0))) return showToast("Hãy nhập tên món; giá có thể bổ sung sau.");
     const duplicate = session.menu.some((item) => item.name.trim().toLocaleLowerCase("vi-VN") === name.toLocaleLowerCase("vi-VN"));
     if (duplicate) return showToast("Món này đã có trong thực đơn chung.");
     session.menu.push({ id: id("menu"), name, price, note: "" });
@@ -1369,9 +1378,10 @@ function bindEvents() {
     const session = activeSession();
     if (!session || isLocked(session)) return;
     const name = dom.customFoodName.value.trim();
-    const price = Number(dom.customFoodPrice.value);
+    const priceText = dom.customFoodPrice.value.trim();
+    const price = priceText === "" ? null : Number(priceText);
     const quantity = Number(dom.customFoodQty.value || 1);
-    if (!name || price < 0) return showToast("Hãy nhập tên và giá món khác.");
+    if (!name || (priceText !== "" && (!Number.isFinite(price) || price < 0))) return showToast("Hãy nhập tên món khác; giá có thể bổ sung sau.");
     const member = selectedMember(session) || ensureCurrentMember(session, true);
     if (!member) return;
     member.selections.push({ id: id("pick"), sourceMenuId: null, name, price, quantity, custom: true });
