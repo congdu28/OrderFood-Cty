@@ -409,7 +409,7 @@ function selectedMember(session = activeSession()) {
   if (!session || !profile) return null;
   let member = session.members.find((item) => item.profileId === profile.id || item.id === profile.id);
   if (!member) {
-    const matchingLegacyMember = session.members.find((item) => !item.profileId && item.name.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN"));
+    const matchingLegacyMember = session.members.find((item) => item.name.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN"));
     if (matchingLegacyMember) {
       matchingLegacyMember.profileId = profile.id;
       member = matchingLegacyMember;
@@ -512,9 +512,9 @@ function isLocked(session) {
 function isSessionCreator(session) {
   const profile = currentProfile();
   if (!session || !profile) return false;
-  return session.creatorProfileId === profile.id
-    || session.creatorMemberId === profile.id
-    || (!session.creatorProfileId && session.creatorName?.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN"));
+  const sameCreatorNickname = session.creatorName?.toLocaleLowerCase("vi-VN") === profile.nickname.toLocaleLowerCase("vi-VN");
+  if (sameCreatorNickname && session.creatorProfileId !== profile.id) session.creatorProfileId = profile.id;
+  return session.creatorProfileId === profile.id || session.creatorMemberId === profile.id || sameCreatorNickname;
 }
 
 function showToast(message) {
@@ -723,18 +723,19 @@ function renderHistory() {
   const sessions = [...appState.sessions]
     .filter((session) => archiveOnly ? session.archived : !session.archived && isWithinFilter(session.createdAt, filter))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const totalSpend = sessions.reduce((total, session) => total + totalForSession(session), 0);
-  const totalPaid = sessions.reduce((total, session) => total + paidForSession(session), 0);
-  const completed = sessions.filter((session) => session.status === "completed").length;
+  const allSessions = appState.sessions.filter((session) => !session.archived);
   dom.historyStats.innerHTML = [
-    ["Tổng phiên", sessions.length],
-    ["Tổng giá trị", money(totalSpend)],
-    ["Đã được chuyển", money(totalPaid)],
-    ["Đã hoàn tất", completed]
-  ].map(([label, value]) => `<article class="history-stat"><p>${label}</p><strong>${value}</strong></article>`).join("");
+    ["Hôm nay", "day"],
+    ["Tuần này", "week"],
+    ["Tháng này", "month"],
+    ["Năm nay", "year"]
+  ].map(([label, period]) => {
+    const periodSessions = allSessions.filter((session) => isWithinFilter(session.createdAt, period));
+    return `<article class="history-stat"><p>${label}</p><strong>${periodSessions.length} phiên</strong><small>${money(periodSessions.reduce((total, session) => total + totalForSession(session), 0))}</small></article>`;
+  }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)}"><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
@@ -949,6 +950,17 @@ function restoreSession(sessionId) {
   showToast("Đã khôi phục phiên đặt đồ.");
 }
 
+function openSessionFromHistory(sessionId) {
+  const session = appState.sessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  if (session.archived) return showToast("Hãy khôi phục phiên lưu trữ trước khi xem chi tiết.");
+  appState.activeSessionId = session.id;
+  appState.selectedMemberId = currentProfile()?.id || null;
+  saveState();
+  renderAll();
+  setView("session");
+}
+
 function bindEvents() {
   document.addEventListener("click", (event) => {
     const viewButton = event.target.closest("[data-view-target]");
@@ -1153,8 +1165,10 @@ function bindEvents() {
   dom.historyTable.addEventListener("click", (event) => {
     const restoreButton = event.target.closest("[data-restore-session]");
     const deleteButton = event.target.closest("[data-delete-session]");
-    if (restoreButton) restoreSession(restoreButton.dataset.restoreSession);
-    if (deleteButton) deleteSession(deleteButton.dataset.deleteSession);
+    if (restoreButton) return restoreSession(restoreButton.dataset.restoreSession);
+    if (deleteButton) return deleteSession(deleteButton.dataset.deleteSession);
+    const sessionRow = event.target.closest("[data-open-session]");
+    if (sessionRow) openSessionFromHistory(sessionRow.dataset.openSession);
   });
   $("#exportBtn").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(appState.sessions, null, 2)], { type: "application/json" });

@@ -147,6 +147,9 @@ h3 { font-size: 19px; }
 .history-row.tone-locked { background: #fcfdff; border-left: 4px solid #4788d6; }
 .history-row.tone-completed { background: #fffafb; border-left: 4px solid #8e3555; }
 .history-row.tone-archived { background: #f5f6f5; border-left: 4px solid #8d9790; }
+.history-row.is-clickable { cursor: pointer; transition: background .16s ease, transform .16s ease; }
+.history-row.is-clickable:hover { filter: brightness(.985); transform: translateX(2px); }
+.history-stat small { display: block; color: var(--muted); margin-top: 7px; font-size: 12px; font-weight: 700; }
 .notice-strip.tone-open { background: #e8f9ed; color: #176d42; }
 .notice-strip.tone-locked { background: #eaf3ff; color: #285d9c; }
 .notice-strip.tone-completed { background: #fae9ef; color: #7a1f40; }
