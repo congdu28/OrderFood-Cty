@@ -2,6 +2,7 @@ const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
 const SESSION_STATUSES = ["open", "locked", "completed"];
+const DEFAULT_ADMIN_NICKNAME = "admin";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -109,6 +110,14 @@ function normalizeProfile(profile) {
 
 function currentProfile() {
   return normalizeProfile(appState.profile);
+}
+
+function globalAdminNickname() {
+  return String(window.SUPABASE_CONFIG?.adminNickname || DEFAULT_ADMIN_NICKNAME).trim().toLocaleLowerCase("vi-VN");
+}
+
+function isGlobalAdmin(profile = currentProfile()) {
+  return Boolean(profile?.nickname && profile.nickname.toLocaleLowerCase("vi-VN") === globalAdminNickname());
 }
 
 function localDateTimeValue(date) {
@@ -245,14 +254,14 @@ function renderProfileControl() {
   dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
   dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
   dom.profileName.textContent = profile?.nickname || "Chọn nickname";
-  dom.profileStatus.textContent = profile ? "Nickname đã lưu" : "Chưa thiết lập";
+  dom.profileStatus.textContent = profile ? (isGlobalAdmin(profile) ? "ADMIN toàn trang" : "Nickname đã lưu") : "Chưa thiết lập";
 }
 
 function openProfileModal(required = !currentProfile()) {
   profileModalRequired = required;
   const profile = currentProfile();
   dom.profileNicknameInput.value = profile?.nickname || "";
-  dom.profileAuthHint.textContent = "Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.";
+  dom.profileAuthHint.textContent = `Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website. Nickname “${globalAdminNickname()}” có quyền ADMIN toàn trang.`;
   dom.profileCancelBtn.hidden = !profile || required;
   dom.profileModal.hidden = false;
   dom.profileModal.setAttribute("aria-hidden", "false");
@@ -543,7 +552,7 @@ function isSessionAdmin(session) {
 }
 
 function canManageSession(session) {
-  return Boolean(isSessionCreator(session) || isSessionAdmin(session));
+  return Boolean(isGlobalAdmin() || isSessionCreator(session) || isSessionAdmin(session));
 }
 
 function memberHasAdminRole(session, member) {
@@ -551,7 +560,7 @@ function memberHasAdminRole(session, member) {
 }
 
 function canManageSettlement(session) {
-  return Boolean(isSessionCreator(session) || selectedMember(session));
+  return Boolean(isGlobalAdmin() || isSessionCreator(session) || selectedMember(session));
 }
 
 function showNoPermission() {
@@ -763,7 +772,7 @@ function renderSession() {
   const paidPeople = payments.filter((person) => person.member.paid).length;
   dom.paidSummary.textContent = `${paidPeople}/${payments.length} đã chuyển`;
   dom.paymentMembers.innerHTML = payments.map(({ member: paymentMember, amount, foodSubtotal, adjustment }) => {
-    const canTick = locked && paymentMember.id === member?.id && session.status !== "completed";
+    const canTick = locked && session.status !== "completed" && (paymentMember.id === member?.id || isGlobalAdmin());
     const detail = session.splitMethod === "equal" ? "Chia đều hóa đơn" : `${money(foodSubtotal)} món${adjustment ? ` ${adjustment > 0 ? "+" : "−"} ${money(Math.abs(adjustment))}` : ""}`;
     return `<div class="payment-member"><div class="payment-person"><span class="avatar" style="background:${paymentMember.color}">${escapeHtml(initials(paymentMember.name))}</span><span><strong>${escapeHtml(paymentMember.name)} ${paymentMember.id === member?.id ? "(bạn)" : ""}</strong><small>${detail}</small></span></div><div class="payment-order-detail">${selectionDetailsMarkup(paymentMember)}</div><span class="payment-amount"><small>Tổng cần chuyển</small>${money(amount)}</span><label class="paid-control"><input type="checkbox" data-payment-member="${paymentMember.id}" ${paymentMember.paid ? "checked" : ""} ${canTick ? "" : "disabled"}/>${paymentMember.paid ? "Đã chuyển" : (locked ? "Chưa chuyển" : "Chờ chốt")}</label></div>`;
   }).join("");
@@ -1245,7 +1254,7 @@ function bindEvents() {
     const session = activeSession();
     const member = session.members.find((item) => item.id === checkbox.dataset.paymentMember);
     const currentMember = selectedMember(session);
-    if (!member || !currentMember || !isLocked(session) || member.id !== currentMember.id) return;
+    if (!member || !isLocked(session) || session.status === "completed" || (!isGlobalAdmin() && (!currentMember || member.id !== currentMember.id))) return showNoPermission();
     member.paid = checkbox.checked;
     member.paidAt = checkbox.checked ? new Date().toISOString() : null;
     saveState(); renderAll();
