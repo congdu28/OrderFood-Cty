@@ -34,16 +34,16 @@
             <span>⌂</span> Tổng quan
           </button>
           <button class="nav-link" data-session-status="open">
-            <span>◌</span> Phiên đang mở
+            <span>◌</span> Đơn đang mở
           </button>
           <button class="nav-link" data-session-status="locked">
-            <span>◈</span><span class="nav-label-with-note">Phiên đã chốt<small>Đang giao hàng</small></span>
+            <span>◈</span><span class="nav-label-with-note">Đơn đã chốt<small>Đang giao hàng</small></span>
           </button>
           <button class="nav-link" data-session-status="completed">
-            <span>✓</span> Phiên đã hoàn thành
+            <span>✓</span> Đơn đã hoàn thành
           </button>
           <button class="nav-link" data-view-target="history">
-            <span>◷</span> Lịch sử
+            <span>◷</span> Lịch sử đơn hàng
           </button>
         </nav>
 
@@ -58,7 +58,7 @@
             <span id="connectionNote">Đang dùng dữ liệu trên trình duyệt</span>
           </div>
           <button class="secondary-button full-width" id="newSessionBtn">
-            <span>＋</span> Tạo phiên mới
+            <span>＋</span> Tạo Đơn Mới
           </button>
         </div>
       </aside>
@@ -68,7 +68,7 @@
           <button class="mobile-menu" id="mobileMenuBtn" aria-label="Mở menu">☰</button>
           <div>
             <p class="eyebrow" id="todayLabel">Hôm nay</p>
-            <h1 id="pageTitle">Ăn trưa thật gọn</h1>
+            <h1 id="pageTitle">Ăn trưa thật ngon</h1>
           </div>
           <div class="topbar-actions">
             <button class="icon-button" id="exportBtn" title="Xuất dữ liệu">⇩</button>
@@ -84,8 +84,8 @@
             <div>
               <p class="eyebrow light">NHÓM CÙNG ĂN</p>
               <h2>Đặt một lần,<br />mọi người trả thật gọn.</h2>
-              <p>Tạo phiên, gom món, chốt tổng và theo dõi chuyển khoản trong một nơi.</p>
-              <button class="primary-button" id="heroCreateBtn">＋ Tạo phiên đặt đồ</button>
+              <p>Tạo đơn, gom món, chốt tổng tiền và theo dõi chuyển khoản trong một nơi.</p>
+              <button class="primary-button" id="heroCreateBtn">＋ Tạo đơn đặt đồ</button>
             </div>
             <div class="hero-illustration" aria-hidden="true">
               <div class="sun"></div>
@@ -97,7 +97,7 @@
 
           <div class="section-heading dashboard-heading">
             <div><p class="eyebrow">TÌNH HÌNH HÔM NAY</p><h2>Rõ ràng trong một ánh nhìn</h2></div>
-            <button class="text-button" data-view-target="history">Xem lịch sử →</button>
+            <button class="text-button" data-view-target="history">Xem lịch sử đơn →</button>
           </div>
 
           <div class="stat-grid" id="statsGrid"></div>
@@ -105,7 +105,7 @@
           <div class="dashboard-grid">
             <article class="card active-session-summary" id="activeSessionSummary"></article>
             <article class="card activity-card">
-              <div class="card-heading"><div><p class="eyebrow">LỊCH SỬ GẦN ĐÂY</p><h3>Các phiên mới nhất</h3></div></div>
+              <div class="card-heading"><div><p class="eyebrow">LỊCH SỬ GẦN ĐÂY</p><h3>Các đơn mới nhất</h3></div></div>
               <div class="mini-history" id="miniHistory"></div>
             </article>
           </div>
@@ -114,19 +114,19 @@
         <section class="view" id="sessionView">
           <div class="session-toolbar">
             <div class="session-picker-panel">
-              <p class="eyebrow">CHỌN PHIÊN</p>
+              <p class="eyebrow">CHỌN ĐƠN</p>
               <div class="select-wrap compact-select">
                 <select id="sessionSwitcher" aria-label="Chọn phiên đặt đồ"></select>
               </div>
               <div class="session-meta" id="sessionMeta"></div>
             </div>
             <details class="session-actions-panel" open>
-              <summary><span>Thao tác phiên</span><small>Bấm để thu gọn</small></summary>
+              <summary><span>Thao tác đơn</span><small>Bấm để thu gọn</small></summary>
               <div class="toolbar-actions">
                 <button class="secondary-button" id="saveSessionBtn">Lưu thay đổi</button>
-                <button class="primary-button" id="lockSessionBtn">Chốt &amp; gửi tổng tiền</button>
+                <button class="primary-button" id="lockSessionBtn">Chốt &amp; Gửi tổng tiền</button>
                 <button class="secondary-button archive-button" id="archiveSessionBtn">⌑ Lưu trữ</button>
-                <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa</button>
+                <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa đơn</button>
                 <button class="complete-button" id="closeSessionBtn">✓ Hoàn thành đơn</button>
               </div>
             </details>
@@ -210,7 +210,7 @@
                   <label>Phí ship / phát sinh<div class="money-input"><input id="deliveryFeeInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                   <label>Giảm giá<div class="money-input"><input id="discountInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                 </div>
-                <p class="field-help">Giá món đã cố định khi tạo phiên. Phí ship và giảm giá được chia đều cho người tham gia.</p>
+                <p class="field-help">Giá món đã cố định khi tạo đơn. Phí ship và giảm giá được chia đều cho người tham gia.</p>
               </div>
               <div class="billing-total" id="billingTotal"></div>
               <div class="order-breakdown" id="orderBreakdown"></div>
@@ -250,7 +250,7 @@
 
         <section class="view" id="historyView">
           <div class="section-heading">
-            <div><p class="eyebrow">DỮ LIỆU PHIÊN ĐẶT ĐỒ</p><h2>Lịch sử &amp; thống kê</h2></div>
+            <div><p class="eyebrow">DỮ LIỆU ĐƠN HÀNG</p><h2>Lịch sử &amp; thống kê</h2></div>
             <div class="select-wrap compact-select"><select id="historyFilter"><option value="all">Tất cả thời gian</option><option value="day">Hôm nay</option><option value="week">Tuần này</option><option value="month">Tháng này</option><option value="year">Năm nay</option><option value="archive">Kho lưu trữ</option><option value="deleted">Đã xóa</option></select></div>
           </div>
           <div class="history-status-grid" id="historyStatusGroups"></div>
@@ -266,7 +266,7 @@
       <section class="modal-card profile-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
         <p class="eyebrow">HỒ SƠ CỦA BẠN</p>
         <h2 id="profileModalTitle">Bạn muốn được gọi là gì?</h2>
-        <p class="modal-intro">Nickname sẽ tự điền khi bạn tham gia các phiên đặt đồ sau này.</p>
+        <p class="modal-intro">Nickname sẽ tự điền khi bạn tham gia các đơn đặt đồ sau này.</p>
         <form id="profileForm">
           <label>Nickname<input id="profileNicknameInput" type="text" placeholder="Ví dụ: Mèo đói" required maxlength="30" autocomplete="nickname" /></label>
           <p class="profile-helper" id="profileAuthHint">Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.</p>
@@ -283,11 +283,11 @@
         <button class="modal-close" id="closeAdminModalBtn" type="button" aria-label="Đóng popup đăng nhập quản trị">×</button>
         <p class="eyebrow">KHU VỰC QUẢN TRỊ</p>
         <h2 id="adminModalTitle">Đăng nhập Admin</h2>
-        <p class="modal-intro">Tài khoản Admin có thể quản lý phiên, thành viên, thanh toán và lịch sử trên toàn trang.</p>
+        <p class="modal-intro">Tài khoản Admin có thể quản lý đơn, thành viên, thanh toán và lịch sử trên toàn trang.</p>
         <form id="adminLoginForm">
           <label>Tài khoản<input id="adminUsernameInput" type="text" required autocomplete="username" autocapitalize="none" /></label>
           <label>Mật khẩu<input id="adminPasswordInput" type="password" required autocomplete="current-password" /></label>
-          <p class="profile-helper" id="adminLoginHint" aria-live="polite">Đăng nhập để quản lý mọi phiên và quyền trên trang.</p>
+          <p class="profile-helper" id="adminLoginHint" aria-live="polite">Đăng nhập để quản lý mọi đơn và quyền trên trang.</p>
           <div class="modal-actions">
             <button class="secondary-button" id="adminCancelBtn" type="button">Hủy</button>
             <button class="primary-button modal-submit" id="adminSubmitBtn" type="submit">Đăng nhập quản trị →</button>
@@ -298,10 +298,10 @@
 
     <div class="modal-backdrop" id="sessionModal" hidden aria-hidden="true">
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="newSessionTitle">
-        <button class="modal-close" id="closeModalBtn" type="button" aria-label="Đóng popup tạo phiên">×</button>
-        <p class="eyebrow">PHIÊN MỚI</p>
+        <button class="modal-close" id="closeModalBtn" type="button" aria-label="Đóng popup tạo đơn">×</button>
+        <p class="eyebrow">ĐƠN MỚI</p>
         <h2 id="newSessionTitle">Hôm nay ăn gì?</h2>
-        <p class="modal-intro">Tạo một phiên để cả nhóm chọn món và thanh toán rõ ràng.</p>
+        <p class="modal-intro">Tạo một đơn để cả nhóm chọn món và thanh toán rõ ràng.</p>
         <form id="newSessionForm">
           <label>Tên phiên<input id="sessionTitleInput" type="text" placeholder="Ví dụ: Ăn trưa thứ Sáu" required maxlength="80" /></label>
           <label>Quán ăn<input id="restaurantInput" type="text" placeholder="Ví dụ: Cơm gà Bà Buội" required maxlength="80" /></label>
@@ -316,7 +316,7 @@
           </div>
           <div class="modal-actions">
             <button class="secondary-button" id="cancelModalBtn" type="button">Hủy</button>
-            <button class="primary-button modal-submit" type="submit">Tạo phiên đặt đồ →</button>
+            <button class="primary-button modal-submit" type="submit">Tạo đơn đặt đồ →</button>
           </div>
         </form>
       </section>
