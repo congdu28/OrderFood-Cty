@@ -737,10 +737,11 @@ function renderDashboard() {
     ...openSessions,
     ...(selectedSession ? [selectedSession] : []),
     ...lockedSessions,
-    ...sortSessionsByPriority(visibleSessions)
+    ...sortSessionsByPriority(visibleSessions),
+    ...sortSessionsByPriority(appState.sessions.filter((item) => item.deleted))
   ].filter((item, index, list) => list.findIndex((candidate) => candidate.id === item.id) === index).slice(0, 6);
   dom.miniHistory.innerHTML = latest.length ? latest.map((item) => `
-    <div class="mini-history-row session-row tone-${sessionTone(item)}"><span class="history-icon">${item.status === "completed" ? "✓" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
+    <div class="mini-history-row session-row tone-${sessionTone(item)}"><span class="history-icon">${sessionTone(item) === "completed" ? "✓" : sessionTone(item) === "deleted" ? "×" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "deleted" ? "Đã hủy" : sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
   `).join("") : `<div class="history-empty">Chưa có dữ liệu.</div>`;
 }
 

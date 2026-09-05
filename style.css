@@ -358,6 +358,30 @@ h3 { font-size: 19px; }
   .member-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 
+/* Bảng màu trạng thái riêng cho Tổng quan */
+.active-session-summary.session-surface.tone-open { background: linear-gradient(135deg, #e8f2ff, #f8fbff); border-color: #7ea9dd; box-shadow: 0 12px 28px rgba(47, 105, 177, .14); }
+.active-session-summary.session-surface.tone-open .status-chip { background: #dceaff; color: #245e9d; }
+.active-session-summary.session-surface.tone-locked { background: linear-gradient(135deg, #214d86, #3268a3); border-color: #183d6c; box-shadow: 0 12px 28px rgba(28, 67, 118, .23); color: #fff; }
+.active-session-summary.session-surface.tone-locked .eyebrow, .active-session-summary.session-surface.tone-locked .active-summary-restaurant, .active-session-summary.session-surface.tone-locked .summary-amounts span { color: #dbeaff; }
+.active-session-summary.session-surface.tone-locked .status-chip { background: #d9e9ff; color: #1d4e87; }
+.active-session-summary.session-surface.tone-locked .text-button { color: #fff; }
+.active-session-summary.session-surface.tone-completed { background: linear-gradient(135deg, #176b3d, #248a50); border-color: #0e4f2d; box-shadow: 0 12px 28px rgba(21, 103, 57, .22); color: #fff; }
+.active-session-summary.session-surface.tone-completed .eyebrow, .active-session-summary.session-surface.tone-completed .active-summary-restaurant, .active-session-summary.session-surface.tone-completed .summary-amounts span { color: #d9f4e3; }
+.active-session-summary.session-surface.tone-completed .status-chip { background: #effff3; color: #126c39; }
+.active-session-summary.session-surface.tone-completed .text-button { color: #fff; }
+.mini-history-row.session-row.tone-open { background: #edf5ff; border-color: #c2d8f2; }
+.mini-history-row.session-row.tone-locked { background: linear-gradient(110deg, #214d86, #3268a3); border-color: #214d86; color: #fff; }
+.mini-history-row.session-row.tone-locked strong, .mini-history-row.session-row.tone-locked small, .mini-history-row.session-row.tone-locked b { color: #fff; }
+.mini-history-row.session-row.tone-locked small { opacity: .82; }
+.mini-history-row.session-row.tone-completed { background: linear-gradient(110deg, #176b3d, #248a50); border-color: #176b3d; color: #fff; }
+.mini-history-row.session-row.tone-completed strong, .mini-history-row.session-row.tone-completed small, .mini-history-row.session-row.tone-completed b { color: #fff; }
+.mini-history-row.session-row.tone-completed small { opacity: .84; }
+.mini-history-row.session-row.tone-deleted { background: #fff0f0; border-color: #f0c6c6; }
+.mini-history-row.session-row.tone-deleted .history-icon { background: #ffe0e0; color: #bb5252; }
+.mini-history-row.session-row.tone-deleted strong { color: #873e3e; }
+.mini-history-row.session-row.tone-deleted small { color: #a96b6b; }
+.mini-history-row.session-row.tone-deleted b { color: #a64a4a; }
+
 @media (max-width: 850px) {
   .admin-access { margin: 0 auto 16px; }
   .admin-login-button, .admin-logout-button { width: 38px; height: 38px; justify-content: center; padding: 0; }
