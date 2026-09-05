@@ -15,9 +15,9 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; color: var(--ink); background: var(--canvas); font-family: "Google Sans", "Google Sans Text", "Product Sans", Roboto, Arial, sans-serif; font-size: 16px; }
-button, input, select { font: inherit; }
+html { scroll-behavior: smooth; font-family: "Google Sans Flex", "Google Sans", "Google Sans Text", "Product Sans", Roboto, Arial, sans-serif; }
+body { margin: 0; color: var(--ink); background: var(--canvas); font-family: inherit; font-size: 16px; }
+button, input, select, textarea, option, optgroup { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(243, 107, 69, .28); outline-offset: 2px; }
 
@@ -122,7 +122,7 @@ h3 { font-size: 17px; margin-bottom: 0; letter-spacing: -.5px; }
 .order-confirm-bar .primary-button:disabled { background: #b8c2bb; box-shadow: none; cursor: not-allowed; transform: none; }
 .order-confirm-bar span { color: #5c6c62; font-size: 12px; line-height: 1.4; font-weight: 600; }
 
-body { font-size: 15px; }
+body { font-size: 16px; }
 h3 { font-size: 19px; }
 .eyebrow { font-size: 11px; }
 .field-label, .hint-text, .member-name, .food-option-copy strong, .selected-food-row, .payment-person strong { font-size: 14px; }
@@ -381,6 +381,8 @@ h3 { font-size: 19px; }
 .mini-history-row.session-row.tone-deleted strong { color: #873e3e; }
 .mini-history-row.session-row.tone-deleted small { color: #a96b6b; }
 .mini-history-row.session-row.tone-deleted b { color: #a64a4a; }
+.mini-history-row[data-open-dashboard-session] { cursor: pointer; transition: transform .16s ease, filter .16s ease; }
+.mini-history-row[data-open-dashboard-session]:hover { transform: translateX(2px); filter: brightness(.985); }
 
 @media (max-width: 850px) {
   .admin-access { margin: 0 auto 16px; }

@@ -730,7 +730,7 @@ function renderDashboard() {
         <span class="status-chip tone-${tone}">${tone === "archived" ? "Lưu trữ" : statusLabel(session.status)}</span>
       </div>
       <div class="summary-amounts"><div><span>Tổng cần thanh toán</span><strong>${money(totalForSession(session))}</strong></div><div><span>Còn chờ</span><strong>${money(totalForSession(session) - paidForSession(session))}</strong></div></div>
-      <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session">Mở phiên →</button></div>`;
+      <div class="summary-footer"><div class="avatar-stack">${session.members.slice(0, 5).map((member) => `<span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>`).join("")}</div><button class="text-button" data-view-target="session" data-open-dashboard-session="${session.id}">Mở phiên →</button></div>`;
   }
 
   const latest = [
@@ -741,7 +741,7 @@ function renderDashboard() {
     ...sortSessionsByPriority(appState.sessions.filter((item) => item.deleted))
   ].filter((item, index, list) => list.findIndex((candidate) => candidate.id === item.id) === index).slice(0, 6);
   dom.miniHistory.innerHTML = latest.length ? latest.map((item) => `
-    <div class="mini-history-row session-row tone-${sessionTone(item)}"><span class="history-icon">${sessionTone(item) === "completed" ? "✓" : sessionTone(item) === "deleted" ? "×" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "deleted" ? "Đã hủy" : sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
+    <div class="mini-history-row session-row tone-${sessionTone(item)}" data-open-dashboard-session="${item.id}" role="button" tabindex="0"><span class="history-icon">${sessionTone(item) === "completed" ? "✓" : sessionTone(item) === "deleted" ? "×" : sessionTone(item) === "archived" ? "⌑" : "⌁"}</span><div><strong>${escapeHtml(item.title)}</strong><small>${sessionTone(item) === "deleted" ? "Đã hủy" : sessionTone(item) === "archived" ? "Đã lưu trữ" : statusLabel(item.status)} · ${item.members.length} người</small></div><b>${money(totalForSession(item))}</b></div>
   `).join("") : `<div class="history-empty">Chưa có dữ liệu.</div>`;
 }
 
@@ -1166,6 +1166,18 @@ function restoreSession(sessionId) {
   showToast("Đã khôi phục phiên đặt đồ.");
 }
 
+function openSessionFromDashboard(sessionId) {
+  const session = appState.sessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  if (session.deleted) return showToast("Phiên này đã nằm trong mục Đã xóa.");
+  if (session.archived) return showToast("Hãy khôi phục phiên lưu trữ trước khi xem chi tiết.");
+  appState.sessionFilter = session.status;
+  appState.activeSessionId = session.id;
+  appState.selectedMemberId = currentProfile()?.id || null;
+  saveState();
+  setView("session");
+}
+
 function openSessionFromHistory(sessionId) {
   const session = appState.sessions.find((item) => item.id === sessionId);
   if (!session) return;
@@ -1185,6 +1197,11 @@ function bindEvents() {
     if (protectedControl) {
       event.preventDefault();
       showNoPermission();
+      return;
+    }
+    const dashboardSession = event.target.closest("[data-open-dashboard-session]");
+    if (dashboardSession) {
+      openSessionFromDashboard(dashboardSession.dataset.openDashboardSession);
       return;
     }
     const sessionStatusButton = event.target.closest("[data-session-status]");
@@ -1213,6 +1230,10 @@ function bindEvents() {
     if (event.key === "Escape" && !dom.sessionModal.hidden) closeNewSessionModal();
     if (event.key === "Escape" && !dom.profileModal.hidden) closeProfileModal();
     if (event.key === "Escape" && !dom.adminModal.hidden) closeAdminLoginModal();
+    if ((event.key === "Enter" || event.key === " ") && event.target.closest("[data-open-dashboard-session]")) {
+      event.preventDefault();
+      openSessionFromDashboard(event.target.closest("[data-open-dashboard-session]").dataset.openDashboardSession);
+    }
   });
   dom.newSessionForm.addEventListener("submit", createSession);
   dom.addCreateMenuBtn.addEventListener("click", () => {
