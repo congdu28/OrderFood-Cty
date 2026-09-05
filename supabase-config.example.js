@@ -3,6 +3,6 @@
  * Không dùng service_role key ở trình duyệt.
  */
 window.SUPABASE_CONFIG = {
-  url: "",
-  publishableKey: ""
+  url: "https://fsqwwaewqlupolhcapgz.supabase.co",
+  publishableKey: "sb_publishable_ZSY-Dptu6nFP6DtobXtkLA_PGTnXeNx"
 };
