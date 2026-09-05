@@ -31,6 +31,9 @@ const dom = {
   memberCountBadge: $("#memberCountBadge"),
   currentOrderCount: $("#currentOrderCount"),
   foodOptions: $("#foodOptions"),
+  sharedMenuForm: $("#sharedMenuForm"),
+  sharedMenuName: $("#sharedMenuName"),
+  sharedMenuPrice: $("#sharedMenuPrice"),
   customFoodForm: $("#customFoodForm"),
   customFoodName: $("#customFoodName"),
   customFoodPrice: $("#customFoodPrice"),
@@ -187,6 +190,8 @@ function makeMember(profile, index) {
 function normalizeSession(session) {
   session.archived = Boolean(session.archived);
   session.deleted = Boolean(session.deleted);
+  if (session.status === "locked" || session.status === "completed") session.lockedAt ||= session.createdAt || null;
+  if (session.status === "completed") session.completedAt ||= session.lockedAt || session.createdAt || null;
   session.menu = Array.isArray(session.menu) ? session.menu : defaultMenu();
   session.members = Array.isArray(session.members) ? session.members : [];
   session.members.forEach((member, index) => {
@@ -548,6 +553,11 @@ function shortDate(value) {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
 
+function formatActionTime(value) {
+  if (!value) return "Chưa ghi nhận";
+  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
 function formatDeadline(value) {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
@@ -769,7 +779,7 @@ function renderSession() {
     dom.joinOrderBtn.textContent = "✓ Xác nhận món đã chọn";
     dom.orderConfirmHint.textContent = "Tạo phiên mới để bắt đầu.";
     [dom.memberPicker, dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput, dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput, dom.qrFileInput].forEach((input) => { input.disabled = true; });
-    dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
+    [dom.sharedMenuForm, dom.customFoodForm].forEach((form) => form?.querySelectorAll("input, button").forEach((element) => { element.disabled = true; }));
     return;
   }
   const member = selectedMember(session);
@@ -797,9 +807,9 @@ function renderSession() {
       ? `Bạn đang tham gia bằng <strong>${escapeHtml(currentProfile()?.nickname || "nickname")}</strong>. Tổng tiền tự cập nhật theo số người đã tham gia.`
       : `Phiên đang mở — tick một món để tự tham gia bằng nickname đã lưu. Tổng tiền tự cập nhật theo số người tham gia.`;
   } else if (session.status === "locked") {
-    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.<small class="status-subnote">Đang chờ giao hàng</small>`;
+    dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.<small class="status-subnote">Đang chờ giao hàng · Chốt lúc ${formatActionTime(session.lockedAt)}</small>`;
   } else {
-    dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.`;
+    dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.<small class="status-subnote">Hoàn thành lúc ${formatActionTime(session.completedAt)}</small>`;
   }
 
   dom.saveSessionBtn.disabled = session.status === "completed";
@@ -833,6 +843,7 @@ function renderSession() {
     const selection = member?.selections.find((item) => item.sourceMenuId === menuItem.id);
     return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${escapeHtml(menuItem.note || "")} · ${money(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
   }).join("");
+  dom.sharedMenuForm.querySelectorAll("input, button").forEach((element) => { element.disabled = session.status !== "open"; });
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
   dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Tick một món ở phía trên để bắt đầu đặt."}</p>`;
 
@@ -924,7 +935,7 @@ function renderHistory() {
     const cards = orderedSessions.length ? orderedSessions.map((session) => {
       const canOpen = group.key === "completed" || group.key === "locked";
       const timestamp = group.key === "deleted" ? session.deletedAt : group.key === "archived" ? session.archivedAt : group.key === "completed" ? session.completedAt : session.lockedAt;
-      return `<button class="history-group-session ${canOpen ? "is-clickable" : ""}" type="button" ${canOpen ? `data-open-session="${session.id}"` : ""}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)} · ${shortDate(timestamp || session.createdAt)}</small></span><b>${money(totalForSession(session))}</b></button>`;
+      return `<button class="history-group-session ${canOpen ? "is-clickable" : ""}" type="button" ${canOpen ? `data-open-session="${session.id}"` : ""}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)} · ${formatActionTime(timestamp || session.createdAt)}</small></span><b>${money(totalForSession(session))}</b></button>`;
     }).join("") : `<p class="history-group-empty">Chưa có phiên.</p>`;
     return `<article class="history-status-card tone-${group.key}"><div class="history-status-heading"><span class="history-status-icon">${group.icon}</span><div><strong>${group.title}</strong><small>${group.sessions.length} phiên</small></div></div><div class="history-group-list">${cards}</div></article>`;
   }).join("");
@@ -939,7 +950,7 @@ function renderHistory() {
   }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived || session.deleted ? "" : "is-clickable"}" ${session.archived || session.deleted ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived || session.deleted ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.deletedAt || session.archivedAt || session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.deleted ? "Đã xóa" : session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived && !session.deleted ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived || session.deleted ? "" : "is-clickable"}" ${session.archived || session.deleted ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived || session.deleted ? "" : " · Bấm để xem chi tiết"}</small></span><span>${formatActionTime(session.deletedAt || session.archivedAt || session.completedAt || session.lockedAt || session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.deleted ? "Đã xóa" : session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived && !session.deleted ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : deletedOnly ? "Mục Đã xóa đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
@@ -1311,6 +1322,22 @@ function bindEvents() {
     const member = selectedMember();
     const selection = member?.selections.find((item) => item.sourceMenuId === button.dataset.menuId);
     if (selection) setMenuQuantity(button.dataset.menuId, selection.quantity + Number(button.dataset.qtyChange));
+  });
+  dom.sharedMenuForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const session = activeSession();
+    if (!session || session.status !== "open") return showToast("Chỉ có thể thêm món khi phiên đang mở.");
+    if (!currentProfile()) return openProfileModal(true);
+    const name = dom.sharedMenuName.value.trim();
+    const price = Number(dom.sharedMenuPrice.value);
+    if (!name || !Number.isFinite(price) || price < 0) return showToast("Hãy nhập tên món và giá hợp lệ.");
+    const duplicate = session.menu.some((item) => item.name.trim().toLocaleLowerCase("vi-VN") === name.toLocaleLowerCase("vi-VN"));
+    if (duplicate) return showToast("Món này đã có trong thực đơn chung.");
+    session.menu.push({ id: id("menu"), name, price, note: "" });
+    saveState();
+    dom.sharedMenuForm.reset();
+    renderAll();
+    showToast(`Đã thêm “${name}” vào thực đơn chung.`);
   });
   dom.customFoodForm.addEventListener("submit", (event) => {
     event.preventDefault();

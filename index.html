@@ -26,7 +26,7 @@
             <span>◌</span> Phiên đang mở
           </button>
           <button class="nav-link" data-session-status="locked">
-            <span>◈</span> Phiên đã chốt
+            <span>◈</span><span class="nav-label-with-note">Phiên đã chốt<small>Đang giao hàng</small></span>
           </button>
           <button class="nav-link" data-session-status="completed">
             <span>✓</span> Phiên đã hoàn thành
@@ -149,6 +149,15 @@
                 <span id="orderConfirmHint">Tick món trước; nickname sẽ tự được thêm vào phiên.</span>
               </div>
               <div class="food-options" id="foodOptions"></div>
+
+              <form class="shared-menu-form" id="sharedMenuForm">
+                <div class="form-title"><span>＋</span> Thêm món vào thực đơn chung <small>Mọi người có thể thêm khi phiên chưa chốt</small></div>
+                <div class="shared-menu-fields">
+                  <input id="sharedMenuName" type="text" placeholder="Tên món muốn thêm" maxlength="60" required />
+                  <input id="sharedMenuPrice" type="number" min="0" step="1000" placeholder="Giá (đ)" required />
+                  <button class="secondary-button" type="submit">Thêm món</button>
+                </div>
+              </form>
 
               <form class="custom-food-form" id="customFoodForm">
                 <div class="form-title"><span>＋</span> Món khác</div>
