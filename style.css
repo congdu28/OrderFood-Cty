@@ -170,6 +170,11 @@ h3 { font-size: 19px; }
 .menu-builder { padding: 13px; background: #f7f8f5; border: 1px solid #e4e9e3; border-radius: 10px; }
 .menu-builder-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: #4a5750; font-size: 11px; font-weight: 800; margin-bottom: 9px; }
 .menu-builder-heading small { color: var(--muted); font-weight: 600; font-size: 9px; }
+.menu-suggestions-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 4px 0 7px; color: #435b50; font-size: 11px; font-weight: 800; }
+.menu-suggestions-heading small { color: var(--muted); font-size: 10px; font-weight: 600; }
+.menu-suggestion-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.menu-suggestion { border: 1px solid #c7ded0; border-radius: 999px; padding: 6px 9px; background: #eff9f2; color: #246c45; font-size: 11px; font-weight: 700; line-height: 1.2; transition: .16s ease; }
+.menu-suggestion:hover { border-color: #63aa7c; background: #dff2e5; transform: translateY(-1px); }
 .create-menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 28px; gap: 6px; margin-top: 6px; }
 .create-menu-row input { min-width: 0; padding: 8px; font-size: 11px; }
 .remove-menu-row { border: 0; background: transparent; color: #aab3ad; font-size: 17px; }
@@ -416,6 +421,10 @@ h3 { font-size: 19px; }
 .active-session-summary.session-surface.tone-open .summary-footer .text-button { color: #245e9d; }
 .active-session-summary.session-surface.tone-locked .summary-footer .text-button { color: #1d4e87; }
 .active-session-summary.session-surface.tone-completed .summary-footer .text-button { color: #126c39; }
+.active-session-summary.session-surface.tone-open { border-width: 3px; border-color: #4f8fd5; background: linear-gradient(135deg, #dcecff, #f7fbff); box-shadow: 0 14px 32px rgba(47, 105, 177, .22); }
+.active-session-summary.session-surface.tone-locked { border-width: 3px; border-color: #123f76; box-shadow: 0 14px 34px rgba(28, 67, 118, .3); }
+.mini-history-row.session-row.tone-open { border-left: 4px solid #4f8fd5; box-shadow: 0 5px 14px rgba(47, 105, 177, .1); }
+.mini-history-row.session-row.tone-locked { border-left: 4px solid #123f76; box-shadow: 0 5px 14px rgba(28, 67, 118, .18); }
 
 @media (max-width: 850px) {
   .nav-link .nav-label-with-note { display: none; }

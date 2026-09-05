@@ -5,6 +5,10 @@ const SESSION_STATUSES = ["open", "locked", "completed"];
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD_HASH = "e5125e68c312a525f7dea5dcb03997cf6740b0d743f199108cb1d7e7e4231849";
 const ADMIN_AUTH_STORAGE_KEY = "an-chung-admin-auth-v1";
+const SUGGESTED_MENU_NAMES = [
+  "Bún Bò Huế", "Phở bò", "Phở gà", "Bún trộn", "Cơm rang dưa bò", "Cơm rang cải bò",
+  "Cơm rang đùi gà", "Cơm tấm", "Bún chả", "Bún đậu mắm tôm", "Bún riêu", "Bánh canh"
+];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -71,6 +75,7 @@ const dom = {
   deadlineInput: $("#deadlineInput"),
   initialMembersInput: $("#initialMembersInput"),
   createMenuRows: $("#createMenuRows"),
+  menuSuggestions: $("#menuSuggestions"),
   addCreateMenuBtn: $("#addCreateMenuBtn"),
   profileButton: $("#profileButton"),
   profileAvatar: $("#profileAvatar"),
@@ -1037,6 +1042,21 @@ function renderCreateMenuRows(menu = defaultMenu()) {
   dom.createMenuRows.innerHTML = menu.map(createMenuRowMarkup).join("");
 }
 
+function renderMenuSuggestions() {
+  dom.menuSuggestions.innerHTML = SUGGESTED_MENU_NAMES.map((name) => `<button class="menu-suggestion" type="button" data-suggest-menu="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+}
+
+function addSuggestedMenu(name) {
+  const normalizedName = name.toLocaleLowerCase("vi-VN");
+  const rows = [...dom.createMenuRows.querySelectorAll(".create-menu-row")];
+  const duplicate = rows.some((row) => row.querySelector("[data-draft-menu-name]").value.trim().toLocaleLowerCase("vi-VN") === normalizedName);
+  if (duplicate) return showToast("Món này đã có trong danh sách.");
+  const onlyBlankRow = rows.length === 1 && !rows[0].querySelector("[data-draft-menu-name]").value.trim() && !rows[0].querySelector("[data-draft-menu-price]").value;
+  if (onlyBlankRow) dom.createMenuRows.innerHTML = createMenuRowMarkup({ name });
+  else dom.createMenuRows.insertAdjacentHTML("beforeend", createMenuRowMarkup({ name }));
+  dom.createMenuRows.querySelector(".create-menu-row:last-child [data-draft-menu-price]").focus();
+}
+
 function collectDraftMenu() {
   const rows = [...dom.createMenuRows.querySelectorAll(".create-menu-row")];
   const menu = [];
@@ -1069,6 +1089,7 @@ function openNewSessionModal() {
   dom.initialMembersInput.value = profile.nickname;
   dom.deadlineInput.value = localDateTimeValue(new Date(Date.now() + 1000 * 60 * 90));
   renderCreateMenuRows([{ name: "", price: undefined }]);
+  renderMenuSuggestions();
   dom.sessionModal.hidden = false;
   dom.sessionModal.setAttribute("aria-hidden", "false");
   setTimeout(() => dom.sessionTitleInput.focus(), 20);
@@ -1094,7 +1115,7 @@ function createSession(event) {
     createdAt: new Date().toISOString(),
     deadline: deadline.toISOString(),
     status: "open",
-    splitMethod: "item",
+    splitMethod: "equal",
     equalTotal: 0,
     deliveryFee: 0,
     discount: 0,
@@ -1259,6 +1280,10 @@ function bindEvents() {
   dom.createMenuRows.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove-draft-menu]");
     if (button) button.closest(".create-menu-row")?.remove();
+  });
+  dom.menuSuggestions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-suggest-menu]");
+    if (button) addSuggestedMenu(button.dataset.suggestMenu);
   });
   $("#mobileMenuBtn").addEventListener("click", () => dom.sidebar.classList.toggle("mobile-open"));
 
