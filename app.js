@@ -47,6 +47,7 @@ const dom = {
   bankOwnerInput: $("#bankOwnerInput"),
   transferNoteInput: $("#transferNoteInput"),
   qrFileInput: $("#qrFileInput"),
+  qrDropzone: $("#qrDropzone"),
   qrPreview: $("#qrPreview"),
   qrPlaceholder: $("#qrPlaceholder"),
   paymentLockLabel: $("#paymentLockLabel"),
@@ -517,6 +518,14 @@ function isSessionCreator(session) {
   return session.creatorProfileId === profile.id || session.creatorMemberId === profile.id || sameCreatorNickname;
 }
 
+function canManageSettlement(session) {
+  return Boolean(isSessionCreator(session) || selectedMember(session));
+}
+
+function showNoPermission() {
+  showToast("Bạn không có quyền sửa.");
+}
+
 function showToast(message) {
   clearTimeout(toastTimer);
   dom.toast.textContent = message;
@@ -635,11 +644,11 @@ function renderSession() {
     dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.`;
   }
 
-  dom.saveSessionBtn.disabled = session.status === "completed" || !isCreator;
-  dom.lockSessionBtn.disabled = session.status === "completed" || !isCreator;
-  dom.closeSessionBtn.disabled = session.status === "completed" || !isCreator;
-  dom.archiveSessionBtn.disabled = !isCreator;
-  dom.deleteSessionBtn.disabled = !isCreator;
+  dom.saveSessionBtn.disabled = session.status === "completed";
+  dom.lockSessionBtn.disabled = session.status === "completed";
+  dom.closeSessionBtn.disabled = session.status === "completed";
+  dom.archiveSessionBtn.disabled = false;
+  dom.deleteSessionBtn.disabled = false;
   dom.lockSessionBtn.textContent = session.status === "open" ? "Chốt & gửi tổng tiền" : session.status === "locked" ? "Đã chốt tổng tiền" : "Đã hoàn tất";
 
   const profile = currentProfile();
@@ -665,14 +674,19 @@ function renderSession() {
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
   dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Bấm nút “Tham gia để đặt món” ngay phía trên để bắt đầu."}</p>`;
 
-  $$('input[name="splitMethod"]').forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked || !isCreator; });
+  $$("#equalSplitOption, #itemSplitOption").forEach((option) => { option.dataset.noEdit = String(!isCreator && !locked); });
+  $$("input[name=\"splitMethod\"]").forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked; });
   dom.equalFields.classList.toggle("visible", session.splitMethod === "equal");
   dom.itemFields.classList.toggle("visible", session.splitMethod === "item");
   dom.totalBillInput.value = session.equalTotal || "";
   dom.deliveryFeeInput.value = session.deliveryFee || "";
   dom.discountInput.value = session.discount || "";
-  [dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput].forEach((input) => { input.disabled = locked || !isCreator; });
-  renderPricingList(session, locked || !isCreator);
+  [dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput].forEach((input) => {
+    input.disabled = locked;
+    input.readOnly = !isCreator;
+    input.dataset.noEdit = String(!isCreator && !locked);
+  });
+  renderPricingList(session, locked, !isCreator);
 
   const amountDescription = session.splitMethod === "equal" ? `Mỗi người nhận ${money(payments[0]?.amount || 0)}` : `Tổng giá món ${money(session.members.reduce((total, item) => total + itemSubtotal(item), 0))}`;
   dom.billingTotal.innerHTML = `<span>${amountDescription}</span><b>${money(totalForSession(session))}</b>`;
@@ -681,7 +695,13 @@ function renderSession() {
   dom.bankAccountInput.value = session.payment.accountNumber || "";
   dom.bankOwnerInput.value = session.payment.accountOwner || "";
   dom.transferNoteInput.value = session.payment.transferNote || "";
-  [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput, dom.qrFileInput].forEach((input) => { input.disabled = locked || !isCreator; });
+  [dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput].forEach((input) => {
+    input.disabled = locked;
+    input.readOnly = !isCreator;
+    input.dataset.noEdit = String(!isCreator && !locked);
+  });
+  dom.qrFileInput.disabled = locked || !isCreator;
+  dom.qrDropzone.dataset.noEdit = String(!isCreator && !locked);
   dom.qrPreview.hidden = !session.payment.qrImage;
   dom.qrPlaceholder.hidden = Boolean(session.payment.qrImage);
   if (session.payment.qrImage) dom.qrPreview.src = session.payment.qrImage;
@@ -695,9 +715,9 @@ function renderSession() {
   }).join("");
 }
 
-function renderPricingList(session, locked) {
-  const menuRows = session.menu.map((menuItem) => `<div class="pricing-row"><span title="${escapeHtml(menuItem.name)}">${escapeHtml(menuItem.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-menu-price="${menuItem.id}" value="${menuItem.price}" ${locked ? "disabled" : ""}/><span>đ</span></div></div>`);
-  const customRows = session.members.flatMap((member) => member.selections.filter((selection) => selection.custom).map((selection) => `<div class="pricing-row"><span title="${escapeHtml(selection.name)}">${escapeHtml(selection.name)} · ${escapeHtml(member.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-selection-price="${selection.id}" value="${selection.price}" ${locked ? "disabled" : ""}/><span>đ</span></div></div>`));
+function renderPricingList(session, locked, readOnly = false) {
+  const menuRows = session.menu.map((menuItem) => `<div class="pricing-row"><span title="${escapeHtml(menuItem.name)}">${escapeHtml(menuItem.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-menu-price="${menuItem.id}" value="${menuItem.price}" ${locked ? "disabled" : ""} ${readOnly ? "readonly" : ""} data-no-edit="${String(readOnly && !locked)}"/><span>đ</span></div></div>`);
+  const customRows = session.members.flatMap((member) => member.selections.filter((selection) => selection.custom).map((selection) => `<div class="pricing-row"><span title="${escapeHtml(selection.name)}">${escapeHtml(selection.name)} · ${escapeHtml(member.name)}</span><div class="money-input"><input type="number" min="0" step="1000" data-selection-price="${selection.id}" value="${selection.price}" ${locked ? "disabled" : ""} ${readOnly ? "readonly" : ""} data-no-edit="${String(readOnly && !locked)}"/><span>đ</span></div></div>`));
   dom.pricingList.innerHTML = [...menuRows, ...customRows].join("") || `<p class="hint-text">Chưa có món để nhập giá.</p>`;
 }
 
@@ -788,7 +808,12 @@ function setMenuQuantity(menuId, value) {
 
 function updatePaymentInfo() {
   const session = activeSession();
-  if (!session || isLocked(session) || !isSessionCreator(session)) return;
+  if (!session || isLocked(session)) return;
+  if (!isSessionCreator(session)) {
+    showNoPermission();
+    renderAll();
+    return;
+  }
   session.payment.bankName = dom.bankNameInput.value.trim();
   session.payment.accountNumber = dom.bankAccountInput.value.trim();
   session.payment.accountOwner = dom.bankOwnerInput.value.trim();
@@ -913,7 +938,7 @@ function joinWithNickname() {
 
 function archiveActiveSession() {
   const session = activeSession();
-  if (!session || !isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể lưu trữ.");
+  if (!session || !canManageSettlement(session)) return showNoPermission();
   if (!window.confirm(`Đưa “${session.title}” vào kho lưu trữ? Bạn có thể khôi phục lại sau.`)) return;
   session.archived = true;
   session.archivedAt = new Date().toISOString();
@@ -963,6 +988,12 @@ function openSessionFromHistory(sessionId) {
 
 function bindEvents() {
   document.addEventListener("click", (event) => {
+    const protectedControl = event.target.closest("[data-no-edit='true']");
+    if (protectedControl) {
+      event.preventDefault();
+      showNoPermission();
+      return;
+    }
     const viewButton = event.target.closest("[data-view-target]");
     if (viewButton) setView(viewButton.dataset.viewTarget);
     if (event.target.closest("[data-open-modal]")) openNewSessionModal();
@@ -1052,16 +1083,26 @@ function bindEvents() {
 
   $$('input[name="splitMethod"]').forEach((radio) => radio.addEventListener("change", () => {
     const session = activeSession();
-    if (isLocked(session) || !isSessionCreator(session)) return;
+    if (isLocked(session)) return;
+    if (!isSessionCreator(session)) {
+      showNoPermission();
+      renderAll();
+      return;
+    }
     session.splitMethod = radio.value;
     saveState(); renderAll();
   }));
-  dom.totalBillInput.addEventListener("change", () => { const session = activeSession(); if (!isLocked(session) && isSessionCreator(session)) { session.equalTotal = Number(dom.totalBillInput.value || 0); saveState(); renderAll(); } });
-  dom.deliveryFeeInput.addEventListener("change", () => { const session = activeSession(); if (!isLocked(session) && isSessionCreator(session)) { session.deliveryFee = Number(dom.deliveryFeeInput.value || 0); saveState(); renderAll(); } });
-  dom.discountInput.addEventListener("change", () => { const session = activeSession(); if (!isLocked(session) && isSessionCreator(session)) { session.discount = Number(dom.discountInput.value || 0); saveState(); renderAll(); } });
+  dom.totalBillInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.equalTotal = Number(dom.totalBillInput.value || 0); saveState(); renderAll(); });
+  dom.deliveryFeeInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.deliveryFee = Number(dom.deliveryFeeInput.value || 0); saveState(); renderAll(); });
+  dom.discountInput.addEventListener("change", () => { const session = activeSession(); if (isLocked(session)) return; if (!isSessionCreator(session)) { showNoPermission(); renderAll(); return; } session.discount = Number(dom.discountInput.value || 0); saveState(); renderAll(); });
   dom.pricingList.addEventListener("change", (event) => {
     const session = activeSession();
-    if (isLocked(session) || !isSessionCreator(session)) return;
+    if (isLocked(session)) return;
+    if (!isSessionCreator(session)) {
+      showNoPermission();
+      renderAll();
+      return;
+    }
     const input = event.target;
     const price = Math.max(0, Number(input.value || 0));
     if (input.dataset.menuPrice) {
@@ -1089,7 +1130,8 @@ function bindEvents() {
   dom.qrFileInput.addEventListener("change", () => {
     const session = activeSession();
     const file = dom.qrFileInput.files?.[0];
-    if (!file || isLocked(session) || !isSessionCreator(session)) return;
+    if (!file || isLocked(session)) return;
+    if (!isSessionCreator(session)) return showNoPermission();
     if (!file.type.startsWith("image/")) { dom.qrFileInput.value = ""; return showToast("Chỉ có thể dùng ảnh PNG, JPG hoặc WEBP làm mã QR."); }
     if (file.size > 1_000_000) { dom.qrFileInput.value = ""; return showToast("Ảnh QR nên nhỏ hơn 1 MB để dễ lưu trên trình duyệt."); }
     if (supabaseClient) {
@@ -1126,11 +1168,11 @@ function bindEvents() {
     showToast(checkbox.checked ? "Đã ghi nhận chuyển khoản." : "Đã bỏ trạng thái chuyển khoản.");
   });
 
-  dom.saveSessionBtn.addEventListener("click", () => { const session = activeSession(); if (!isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể cập nhật thông tin chung."); saveState(); showToast("Đã lưu thay đổi trên trình duyệt này."); });
+  dom.saveSessionBtn.addEventListener("click", () => { const session = activeSession(); if (!isSessionCreator(session)) return showNoPermission(); saveState(); showToast("Đã lưu thay đổi trên trình duyệt này."); });
   dom.lockSessionBtn.addEventListener("click", () => {
     const session = activeSession();
     if (!session) return showToast("Hãy tạo phiên đặt đồ trước.");
-    if (!isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể chốt tổng tiền.");
+    if (!canManageSettlement(session)) return showNoPermission();
     if (session.status !== "open") return showToast("Số tiền của phiên này đã được chốt.");
     if (!session.members.length) return showToast("Cần ít nhất một thành viên.");
     const unconfirmedMembers = session.members.filter((member) => !member.orderConfirmedAt);
@@ -1146,7 +1188,7 @@ function bindEvents() {
   dom.closeSessionBtn.addEventListener("click", () => {
     const session = activeSession();
     if (!session) return showToast("Hãy tạo phiên đặt đồ trước.");
-    if (!isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể hoàn tất phiên.");
+    if (!isSessionCreator(session)) return showNoPermission();
     if (session.status === "open") return showToast("Hãy chốt tổng tiền trước khi hoàn tất phiên.");
     if (session.status === "completed") return;
     const unpaid = session.members.filter((member) => !member.paid).length;
@@ -1158,7 +1200,7 @@ function bindEvents() {
   dom.archiveSessionBtn.addEventListener("click", archiveActiveSession);
   dom.deleteSessionBtn.addEventListener("click", () => {
     const session = activeSession();
-    if (!session || !isSessionCreator(session)) return showToast("Chỉ người tạo phiên mới có thể xóa phiên.");
+    if (!session || !isSessionCreator(session)) return showNoPermission();
     deleteSession(session.id);
   });
   dom.historyFilter.addEventListener("change", renderHistory);

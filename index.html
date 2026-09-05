@@ -88,19 +88,23 @@
 
         <section class="view" id="sessionView">
           <div class="session-toolbar">
-            <div>
+            <div class="session-picker-panel">
+              <p class="eyebrow">CHỌN PHIÊN</p>
               <div class="select-wrap compact-select">
                 <select id="sessionSwitcher" aria-label="Chọn phiên đặt đồ"></select>
               </div>
               <div class="session-meta" id="sessionMeta"></div>
             </div>
-            <div class="toolbar-actions">
-              <button class="secondary-button" id="saveSessionBtn">Lưu thay đổi</button>
-              <button class="primary-button" id="lockSessionBtn">Chốt &amp; gửi tổng tiền</button>
-              <button class="secondary-button archive-button" id="archiveSessionBtn">⌑ Lưu trữ</button>
-              <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa</button>
-              <button class="icon-button danger-button" id="closeSessionBtn" title="Hoàn tất phiên">✓</button>
-            </div>
+            <details class="session-actions-panel" open>
+              <summary><span>Thao tác phiên</span><small>Bấm để thu gọn</small></summary>
+              <div class="toolbar-actions">
+                <button class="secondary-button" id="saveSessionBtn">Lưu thay đổi</button>
+                <button class="primary-button" id="lockSessionBtn">Chốt &amp; gửi tổng tiền</button>
+                <button class="secondary-button archive-button" id="archiveSessionBtn">⌑ Lưu trữ</button>
+                <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa</button>
+                <button class="complete-button" id="closeSessionBtn">✓ Hoàn thành đơn</button>
+              </div>
+            </details>
           </div>
 
           <div class="notice-strip" id="statusNotice"></div>
