@@ -203,3 +203,45 @@ h3 { font-size: 19px; }
   .session-actions-panel .toolbar-actions button { width: 100%; padding: 10px 8px; font-size: 12px; }
   .session-actions-panel summary small { display: none; }
 }
+
+/* Chi tiết món ở phần tính tiền và chuyển khoản */
+.order-breakdown { margin-top: 16px; padding-top: 14px; border-top: 1px dashed #dce5de; }
+.order-breakdown-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.order-breakdown-heading strong { color: #365244; font-size: 12px; }
+.order-breakdown-heading span { color: var(--muted); font-size: 10px; }
+.order-breakdown-member { padding: 9px 10px; border: 1px solid #e5ebe6; border-radius: 10px; background: #fbfdfb; }
+.order-breakdown-member + .order-breakdown-member { margin-top: 7px; }
+.order-breakdown-name { display: flex; align-items: center; gap: 7px; }
+.order-breakdown-name .avatar { width: 24px; height: 24px; font-size: 10px; }
+.order-breakdown-name strong { font-size: 11px; }
+.order-breakdown-name > b { margin-left: auto; color: #176d42; font-size: 11px; }
+.order-breakdown-lines, .payment-order-detail { display: grid; gap: 4px; }
+.order-breakdown-lines { margin: 8px 0 0 31px; }
+.order-detail-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: #526158; font-size: 10px; }
+.order-detail-line span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-detail-line small { color: #78847d; font-size: 10px; }
+.order-detail-line b { flex: 0 0 auto; color: #33463a; font-size: 10px; }
+.order-detail-line em { color: #c86a42; font-size: 9px; font-style: normal; font-weight: 800; }
+.order-detail-empty { color: #9ba69f; font-size: 10px; font-style: italic; }
+.payment-member { grid-template-columns: minmax(130px, .8fr) minmax(180px, 1.35fr) 108px 125px; }
+.payment-order-detail { padding: 7px 9px; border-radius: 8px; background: #f7faf7; border: 1px solid #e7eee8; }
+.payment-amount { display: grid; gap: 3px; }
+.payment-amount small { color: var(--muted); font-size: 9px; font-weight: 700; }
+
+/* Lịch sử đơn hoàn tất: xanh lá và có dấu xác nhận */
+.history-row.tone-completed { background: linear-gradient(90deg, #e9f9ed, #fbfffc); border-left-color: #24985a; }
+.history-row.tone-completed .status-chip { background: #ccefd7; color: #117741; }
+.history-row.tone-completed .status-chip::before { content: "✓"; width: auto; height: auto; background: transparent; font-size: 12px; font-weight: 950; }
+
+@media (max-width: 850px) {
+  .payment-member { grid-template-columns: minmax(150px, 1fr) minmax(180px, 1.2fr) 105px; }
+  .payment-member .paid-control { grid-column: 3; }
+}
+
+@media (max-width: 560px) {
+  .payment-member { grid-template-columns: 1fr auto; gap: 8px; }
+  .payment-order-detail { grid-column: 1 / -1; }
+  .payment-amount { grid-column: 1; grid-row: 2; text-align: left; }
+  .payment-member .paid-control { grid-column: 2; grid-row: 1 / span 2; }
+  .order-breakdown-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
+}

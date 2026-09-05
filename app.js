@@ -42,6 +42,7 @@ const dom = {
   pricingList: $("#pricingList"),
   billingModeBadge: $("#billingModeBadge"),
   billingTotal: $("#billingTotal"),
+  orderBreakdown: $("#orderBreakdown"),
   bankNameInput: $("#bankNameInput"),
   bankAccountInput: $("#bankAccountInput"),
   bankOwnerInput: $("#bankOwnerInput"),
@@ -608,9 +609,10 @@ function renderSession() {
     dom.foodOptions.innerHTML = "";
     dom.selectedFoods.innerHTML = "";
     dom.pricingList.innerHTML = "";
+    dom.orderBreakdown.innerHTML = "";
     dom.paymentMembers.innerHTML = "";
     dom.joinOrderBtn.disabled = true;
-    dom.joinOrderBtn.textContent = "✓ Tham gia để đặt món";
+    dom.joinOrderBtn.textContent = "✓ Xác nhận món đã chọn";
     dom.orderConfirmHint.textContent = "Tạo phiên mới để bắt đầu.";
     [dom.memberPicker, dom.totalBillInput, dom.deliveryFeeInput, dom.discountInput, dom.bankNameInput, dom.bankAccountInput, dom.bankOwnerInput, dom.transferNoteInput, dom.qrFileInput].forEach((input) => { input.disabled = true; });
     dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
@@ -619,7 +621,8 @@ function renderSession() {
   const member = selectedMember(session);
   const locked = isLocked(session);
   const isCreator = isSessionCreator(session, member);
-  const canOrder = Boolean(member) && !locked;
+  const profile = currentProfile();
+  const canOrder = Boolean(profile) && !locked;
   const payments = calculatePayments(session);
   const selectedCount = member?.selections.reduce((total, item) => total + item.quantity, 0) || 0;
 
@@ -651,13 +654,12 @@ function renderSession() {
   dom.deleteSessionBtn.disabled = false;
   dom.lockSessionBtn.textContent = session.status === "open" ? "Chốt & gửi tổng tiền" : session.status === "locked" ? "Đã chốt tổng tiền" : "Đã hoàn tất";
 
-  const profile = currentProfile();
   dom.memberPicker.disabled = true;
   dom.memberPicker.innerHTML = `<option>${escapeHtml(profile?.nickname || "Chưa có nickname")}${member ? " · đã tham gia phiên" : " · chưa tham gia"}</option>`;
   const isOrderConfirmed = Boolean(member?.orderConfirmedAt);
-  dom.joinOrderBtn.disabled = !profile || locked || (Boolean(member) && (!selectedCount || isOrderConfirmed));
-  dom.joinOrderBtn.textContent = !profile ? "Tạo nickname để đặt món" : !member ? "✓ Tham gia để đặt món" : isOrderConfirmed ? "✓ Đã xác nhận món" : selectedCount ? `✓ Xác nhận ${selectedCount} phần đã chọn` : "Chọn món để xác nhận";
-  dom.orderConfirmHint.textContent = !profile ? "Hãy tạo nickname trước." : !member ? "Bấm một lần để tham gia phiên bằng nickname đã lưu." : isOrderConfirmed ? "Món của bạn đã được ghi nhận. Nếu chỉnh món, hãy xác nhận lại." : selectedCount ? "Kiểm tra món rồi bấm xác nhận để người tạo dễ chốt đơn." : "Hãy tick ít nhất một món trước khi xác nhận.";
+  dom.joinOrderBtn.disabled = !profile || locked || !selectedCount || isOrderConfirmed;
+  dom.joinOrderBtn.textContent = !profile ? "Tạo nickname để đặt món" : isOrderConfirmed ? "✓ Đã xác nhận món" : selectedCount ? `✓ Xác nhận ${selectedCount} phần đã chọn` : "✓ Xác nhận món đã chọn";
+  dom.orderConfirmHint.textContent = !profile ? "Hãy tạo nickname trước." : isOrderConfirmed ? "Món của bạn đã được ghi nhận. Nếu chỉnh món, hãy xác nhận lại." : selectedCount ? "Kiểm tra món rồi bấm xác nhận để người tạo dễ chốt đơn." : "Tick ít nhất một món; nickname sẽ tự được thêm vào phiên.";
   const creatorIsParticipant = session.members.some((item) => item.profileId === session.creatorProfileId || item.id === session.creatorMemberId);
   const creatorRow = creatorIsParticipant ? "" : `<div class="member-row ${isCreator ? "current" : ""}"><span class="avatar" style="background:${session.creatorColor}">${escapeHtml(initials(session.creatorName))}</span><span><span class="member-name">${escapeHtml(session.creatorName)} <small>(người tạo)</small></span><small>Quản lý món, giá và thanh toán</small></span></div>`;
   const participantRows = session.members.map((item) => {
@@ -672,7 +674,7 @@ function renderSession() {
     return `<label class="food-option"><input type="checkbox" data-menu-checkbox="${menuItem.id}" ${selectedMenuIds.has(menuItem.id) ? "checked" : ""} ${canOrder ? "" : "disabled"}/><span class="food-option-copy"><strong>${escapeHtml(menuItem.name)}</strong><small>${escapeHtml(menuItem.note || "")} · ${money(menuItem.price)}</small></span><span class="food-qty"><button type="button" class="qty-button" data-qty-change="-1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>−</button><input type="number" min="1" max="20" value="${selection?.quantity || 1}" data-qty-input="${menuItem.id}" ${canOrder ? "" : "disabled"}/><button type="button" class="qty-button" data-qty-change="1" data-menu-id="${menuItem.id}" ${canOrder ? "" : "disabled"}>+</button></span></label>`;
   }).join("");
   dom.customFoodForm.querySelectorAll("input, button").forEach((element) => { element.disabled = !canOrder; });
-  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Bấm nút “Tham gia để đặt món” ngay phía trên để bắt đầu."}</p>`;
+  dom.selectedFoods.innerHTML = member?.selections.length ? member.selections.map((item) => `<div class="selected-food-row"><span>${escapeHtml(item.name)} ${item.custom ? '<em class="custom-mark">MÓN KHÁC</em>' : ""} <small>× ${item.quantity}</small></span><b>${money(item.price * item.quantity)}</b>${canOrder ? `<button class="delete-food" data-remove-selection="${item.id}" title="Bỏ món">×</button>` : ""}</div>`).join("") : `<p class="hint-text">${member ? "Chưa chọn món nào." : "Tick một món ở phía trên để bắt đầu đặt."}</p>`;
 
   $$("#equalSplitOption, #itemSplitOption").forEach((option) => { option.dataset.noEdit = String(!isCreator && !locked); });
   $$("input[name=\"splitMethod\"]").forEach((input) => { input.checked = input.value === session.splitMethod; input.disabled = locked; });
@@ -690,6 +692,7 @@ function renderSession() {
 
   const amountDescription = session.splitMethod === "equal" ? `Mỗi người nhận ${money(payments[0]?.amount || 0)}` : `Tổng giá món ${money(session.members.reduce((total, item) => total + itemSubtotal(item), 0))}`;
   dom.billingTotal.innerHTML = `<span>${amountDescription}</span><b>${money(totalForSession(session))}</b>`;
+  renderOrderBreakdown(session);
 
   dom.bankNameInput.value = session.payment.bankName || "";
   dom.bankAccountInput.value = session.payment.accountNumber || "";
@@ -711,8 +714,19 @@ function renderSession() {
   dom.paymentMembers.innerHTML = payments.map(({ member: paymentMember, amount, foodSubtotal, adjustment }) => {
     const canTick = locked && paymentMember.id === member?.id && session.status !== "completed";
     const detail = session.splitMethod === "equal" ? "Chia đều hóa đơn" : `${money(foodSubtotal)} món${adjustment ? ` ${adjustment > 0 ? "+" : "−"} ${money(Math.abs(adjustment))}` : ""}`;
-    return `<div class="payment-member"><div class="payment-person"><span class="avatar" style="background:${paymentMember.color}">${escapeHtml(initials(paymentMember.name))}</span><span><strong>${escapeHtml(paymentMember.name)} ${paymentMember.id === member?.id ? "(bạn)" : ""}</strong><small>${detail}</small></span></div><span class="payment-amount">${money(amount)}</span><label class="paid-control"><input type="checkbox" data-payment-member="${paymentMember.id}" ${paymentMember.paid ? "checked" : ""} ${canTick ? "" : "disabled"}/>${paymentMember.paid ? "Đã chuyển" : (locked ? "Chưa chuyển" : "Chờ chốt")}</label></div>`;
+    return `<div class="payment-member"><div class="payment-person"><span class="avatar" style="background:${paymentMember.color}">${escapeHtml(initials(paymentMember.name))}</span><span><strong>${escapeHtml(paymentMember.name)} ${paymentMember.id === member?.id ? "(bạn)" : ""}</strong><small>${detail}</small></span></div><div class="payment-order-detail">${selectionDetailsMarkup(paymentMember)}</div><span class="payment-amount"><small>Tổng cần chuyển</small>${money(amount)}</span><label class="paid-control"><input type="checkbox" data-payment-member="${paymentMember.id}" ${paymentMember.paid ? "checked" : ""} ${canTick ? "" : "disabled"}/>${paymentMember.paid ? "Đã chuyển" : (locked ? "Chưa chuyển" : "Chờ chốt")}</label></div>`;
   }).join("");
+}
+
+function selectionDetailsMarkup(member) {
+  const selections = member?.selections || [];
+  if (!selections.length) return `<span class="order-detail-empty">Chưa chọn món</span>`;
+  return selections.map((selection) => `<div class="order-detail-line"><span>${escapeHtml(selection.name)}${selection.custom ? ' <em>Món khác</em>' : ""} <small>× ${Number(selection.quantity || 0)}</small></span><b>${money(Number(selection.price || 0) * Number(selection.quantity || 0))}</b></div>`).join("");
+}
+
+function renderOrderBreakdown(session) {
+  const rows = session.members.map((member) => `<div class="order-breakdown-member"><div class="order-breakdown-name"><span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span><strong>${escapeHtml(member.name)}</strong><b>${money(itemSubtotal(member))}</b></div><div class="order-breakdown-lines">${selectionDetailsMarkup(member)}</div></div>`).join("");
+  dom.orderBreakdown.innerHTML = `<div class="order-breakdown-heading"><strong>Ai chọn món gì</strong><span>SL và thành tiền từng món</span></div>${rows || `<p class="hint-text">Chưa có ai chọn món.</p>`}`;
 }
 
 function renderPricingList(session, locked, readOnly = false) {
@@ -755,7 +769,7 @@ function renderHistory() {
   }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived ? "" : "is-clickable"}" ${session.archived ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived ? "" : " · Bấm để xem chi tiết"}</small></span><span>${shortDate(session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.archived ? "Lưu trữ" : session.status === "completed" ? "✓ Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
@@ -918,22 +932,29 @@ function createSession(event) {
   closeNewSessionModal();
   renderAll();
   setView("session");
-  showToast("Đã tạo phiên mới. Bạn và mọi người có thể bấm Tham gia để chọn món!");
+  showToast("Đã tạo phiên mới. Mọi người chỉ cần tick món để bắt đầu đặt.");
 }
 
-function joinWithNickname() {
-  const session = activeSession();
+function ensureCurrentMember(session = activeSession(), silent = false) {
   const profile = currentProfile();
-  if (!session) return;
-  if (!profile) return openProfileModal(true);
-  if (isLocked(session)) return showToast("Phiên đã chốt nên không thể tham gia thêm.");
-  if (selectedMember(session)) return showToast("Bạn đã tham gia phiên này rồi.");
+  if (!session) return null;
+  if (!profile) {
+    openProfileModal(true);
+    return null;
+  }
+  if (isLocked(session)) {
+    if (!silent) showToast("Phiên đã chốt nên không thể tham gia thêm.");
+    return null;
+  }
+  const existingMember = selectedMember(session);
+  if (existingMember) return existingMember;
   const newMember = makeMember(profile, session.members.length);
   session.members.push(newMember);
   appState.selectedMemberId = newMember.id;
   saveState();
   renderAll();
-  showToast(`Đã tham gia phiên với nickname ${profile.nickname}.`);
+  if (!silent) showToast(`Đã tham gia phiên với nickname ${profile.nickname}.`);
+  return newMember;
 }
 
 function archiveActiveSession() {
@@ -1025,10 +1046,7 @@ function bindEvents() {
     saveState(); renderAll();
   });
   dom.changeNicknameBtn.addEventListener("click", () => openProfileModal(false));
-  dom.joinOrderBtn.addEventListener("click", () => {
-    if (selectedMember()) confirmCurrentOrder();
-    else joinWithNickname();
-  });
+  dom.joinOrderBtn.addEventListener("click", confirmCurrentOrder);
   dom.memberList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove-member]");
     if (!button) return;
@@ -1047,8 +1065,12 @@ function bindEvents() {
     const quantityInput = event.target.closest("[data-qty-input]");
     if (checkbox) {
       const session = activeSession();
-      const member = selectedMember(session);
-      if (!member) return;
+      if (!session || isLocked(session)) return;
+      const member = selectedMember(session) || (checkbox.checked ? ensureCurrentMember(session, true) : null);
+      if (!member) {
+        checkbox.checked = false;
+        return;
+      }
       const selection = member.selections.find((item) => item.sourceMenuId === checkbox.dataset.menuCheckbox);
       if (checkbox.checked && !selection) addMenuSelection(checkbox.dataset.menuCheckbox);
       if (!checkbox.checked && selection) removeSelection(selection.id);
@@ -1065,12 +1087,13 @@ function bindEvents() {
   dom.customFoodForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const session = activeSession();
-    const member = selectedMember(session);
-    if (!session || !member || isLocked(session)) return;
+    if (!session || isLocked(session)) return;
     const name = dom.customFoodName.value.trim();
     const price = Number(dom.customFoodPrice.value);
     const quantity = Number(dom.customFoodQty.value || 1);
     if (!name || price < 0) return showToast("Hãy nhập tên và giá món khác.");
+    const member = selectedMember(session) || ensureCurrentMember(session, true);
+    if (!member) return;
     member.selections.push({ id: id("pick"), sourceMenuId: null, name, price, quantity, custom: true });
     markOrderAsChanged(member);
     dom.customFoodForm.reset(); dom.customFoodQty.value = 1;

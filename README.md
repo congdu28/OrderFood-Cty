@@ -10,12 +10,12 @@ Mở trực tiếp file `index.html` bằng trình duyệt. Dự án không dùn
 
 1. Lần truy cập đầu tiên, mỗi người tạo một **nickname dùng lại**. Nickname được lưu trên trình duyệt và tự điền ở các phiên sau trên cùng thiết bị.
 2. Bất kỳ ai cũng có thể bấm **Tạo phiên đặt đồ**, nhập quán, hạn chốt và **danh sách món kèm giá** trước khi mở phiên. Người tạo chỉ có quyền quản lý, chưa được tính là người tham gia đặt món.
-3. Người muốn đặt cùng bấm **Tham gia để đặt món** ngay trong ô chọn món. Hệ thống dùng luôn nickname đã lưu, không yêu cầu nhập lại. Người tạo cũng cần tham gia nếu muốn gọi món.
+3. Người muốn đặt cùng chỉ cần **tick món đầu tiên**. Hệ thống tự thêm nickname đã lưu vào phiên, không yêu cầu nhập lại; sau đó bấm **Xác nhận món đã chọn**. Người tạo cũng cần tick món nếu muốn gọi món.
 4. Người tạo phiên chọn một trong hai cách tính:
    - **Chia đều:** nhập tổng hóa đơn cuối cùng.
    - **Theo từng món:** hệ thống cộng món mỗi người chọn; phí ship và giảm giá được chia đều.
 5. Nhập thông tin tài khoản, nội dung chuyển khoản và tải ảnh QR nếu có.
-6. Người tham gia bấm **Xác nhận món đã chọn** trong ô chọn món. Khi mọi người đã xác nhận, bất kỳ người nào đã tham gia phiên đều có thể bấm **Chốt & gửi tổng tiền** để khóa món/giá và mở checkbox **Đã chuyển**. Mỗi nickname chỉ tick được trạng thái của chính mình.
+6. Phần tính tiền và theo dõi chuyển khoản hiển thị rõ từng người chọn món gì, số lượng, giá từng món và tổng cần chuyển. Khi mọi người đã xác nhận, bất kỳ người nào đã tham gia phiên đều có thể bấm **Chốt & gửi tổng tiền** để khóa món/giá và mở checkbox **Đã chuyển**. Mỗi nickname chỉ tick được trạng thái của chính mình.
 7. Bất kỳ người đã tham gia phiên đều có thể **lưu trữ** phiên để khôi phục sau. Chỉ người tạo mới có thể sửa cấu hình giá/thanh toán, **Hoàn thành đơn** hoặc **xóa hẳn** phiên; thao tác không có quyền sẽ hiện thông báo rõ ràng. Phiên lưu trữ nằm trong bộ lọc **Kho lưu trữ** ở màn Lịch sử.
 8. Hoàn tất phiên để giữ lại số liệu trong màn Lịch sử; có bộ lọc ngày, tuần, tháng, năm và nút xuất JSON.
 
