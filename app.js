@@ -626,9 +626,14 @@ function itemSubtotal(member) {
   return member.selections.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0);
 }
 
+function memberHasSelections(member) {
+  return Boolean(member?.selections?.some((selection) => Number(selection.quantity || 0) > 0));
+}
+
 function calculatePayments(session) {
   if (!session || !session.members.length) return [];
-  const members = session.members;
+  const members = session.members.filter(memberHasSelections);
+  if (!members.length) return [];
   const subtotals = members.map(itemSubtotal);
 
   if (session.splitMethod === "equal") {
@@ -744,8 +749,9 @@ function renderDashboard() {
   const selectedSession = visibleSessions.find((item) => item.id === appState.activeSessionId) || null;
   const session = openSessions[0] || selectedSession || lockedSessions[0] || sortSessionsByPriority(visibleSessions)[0] || null;
   const totalOwed = lockedSessions.reduce((total, item) => total + (totalForSession(item) - paidForSession(item)), 0);
-  const paidCount = session ? session.members.filter((member) => member.paid).length : 0;
-  const peopleCount = session?.members.length || 0;
+  const orderingMembers = session?.members.filter(memberHasSelections) || [];
+  const paidCount = orderingMembers.filter((member) => member.paid).length;
+  const peopleCount = orderingMembers.length;
   const statCards = [
     ["Phiên đang mở", openSessions.length, openSessions.length ? "Ưu tiên hiển thị đầu tiên" : "Chưa có phiên cần chọn món"],
     ["Cần chuyển lại", money(totalOwed), totalOwed ? "Tổng tiền nhóm chưa thanh toán" : "Mọi khoản đã đủ"],
@@ -825,7 +831,7 @@ function renderSession() {
   dom.sessionSwitcher.disabled = false;
   dom.sessionSwitcher.innerHTML = sessionsForCurrentFilter().map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "✓"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
   dom.sessionMeta.textContent = `${session.restaurant} · Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
-  dom.memberCountBadge.textContent = `${session.members.length} người`;
+  dom.memberCountBadge.textContent = `${session.members.filter(memberHasSelections).length} người`;
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
   dom.billingModeBadge.textContent = session.splitMethod === "equal" ? "Chia đều" : "Theo món";
   dom.paymentLockLabel.textContent = session.status === "open" ? "Đang mở" : session.status === "locked" ? "Đã chốt" : "Hoàn tất";
@@ -927,7 +933,7 @@ function selectionDetailsMarkup(member) {
 }
 
 function renderOrderBreakdown(session) {
-  const rows = session.members.map((member) => `<div class="order-breakdown-member"><div class="order-breakdown-name"><span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span><strong>${escapeHtml(member.name)}</strong><b>${money(itemSubtotal(member))}</b></div><div class="order-breakdown-lines">${selectionDetailsMarkup(member)}</div></div>`).join("");
+  const rows = session.members.filter(memberHasSelections).map((member) => `<div class="order-breakdown-member"><div class="order-breakdown-name"><span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span><strong>${escapeHtml(member.name)}</strong><b>${money(itemSubtotal(member))}</b></div><div class="order-breakdown-lines">${selectionDetailsMarkup(member)}</div></div>`).join("");
   dom.orderBreakdown.innerHTML = `<div class="order-breakdown-heading"><strong>Ai chọn món gì</strong><span>SL và thành tiền từng món</span></div>${rows || `<p class="hint-text">Chưa có ai chọn món.</p>`}`;
 }
 
@@ -1475,8 +1481,9 @@ function bindEvents() {
     if (!session) return showToast("Hãy tạo phiên đặt đồ trước.");
     if (!canManageSettlement(session)) return showNoPermission();
     if (session.status !== "open") return showToast("Số tiền của phiên này đã được chốt.");
-    if (!session.members.length) return showToast("Cần ít nhất một thành viên.");
-    const unconfirmedMembers = session.members.filter((member) => !member.orderConfirmedAt);
+    const orderingMembers = session.members.filter(memberHasSelections);
+    if (!orderingMembers.length) return showToast("Cần ít nhất một người chọn món.");
+    const unconfirmedMembers = orderingMembers.filter((member) => !member.orderConfirmedAt);
     if (unconfirmedMembers.length) return showToast(`Còn ${unconfirmedMembers.length} người chưa xác nhận món.`);
     const payments = calculatePayments(session);
     if (totalForSession(session) <= 0) return showToast(session.splitMethod === "equal" ? "Hãy nhập tổng hóa đơn trước khi chốt." : "Hãy thêm món hoặc nhập phí phát sinh trước khi chốt.");

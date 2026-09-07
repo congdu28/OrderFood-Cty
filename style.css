@@ -475,3 +475,23 @@ h3 { font-size: 19px; }
   .paid-control { font-size: 12px; }
   .toast { font-size: 13px; }
 }
+
+.paid-control {
+  min-height: 43px;
+  padding: 8px 11px;
+  border: 1px solid #b8ddc3;
+  border-radius: 10px;
+  background: #f1fbf3;
+  color: #356348;
+  font-size: 12px;
+  font-weight: 800;
+}
+.paid-control input { width: 25px; height: 25px; border-radius: 7px; border-color: #91b99d; }
+.paid-control input:checked::after { left: 4px; top: 1px; font-size: 16px; font-weight: 900; }
+.paid-control:has(input:checked) { color: #15723c; background: #e1f6e7; border-color: #65ae7b; }
+
+@media (max-width: 560px) {
+  .paid-control { min-height: 39px; padding: 7px 8px; font-size: 11px; }
+  .paid-control input { width: 23px; height: 23px; }
+  .paid-control input:checked::after { left: 3px; top: 0; font-size: 15px; }
+}
