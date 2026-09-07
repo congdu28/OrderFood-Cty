@@ -533,3 +533,55 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   .summary-footer { align-items: stretch; flex-direction: column; gap: 13px; }
   .avatar-stack { min-height: 29px; }
 }
+
+/* Tăng độ dễ đọc cho form tạo đơn và các vùng thao tác chính */
+.nav-link,
+.primary-button,
+.secondary-button,
+.complete-button,
+.add-menu-button { font-size: 15px; }
+.field-label,
+.hint-text,
+.member-name,
+.food-option-copy strong,
+.selected-food-row,
+.payment-person strong { font-size: 15px; }
+.food-option-copy small,
+.member-row small,
+.field-help,
+.payment-person small,
+.session-meta,
+.order-confirm-bar span,
+.mini-history-row small,
+.history-group-session small,
+.history-status-heading small { font-size: 13px; }
+.menu-builder-heading,
+.menu-suggestions-heading { font-size: 13px; }
+.menu-builder-heading small,
+.menu-suggestions-heading small { font-size: 11px; }
+.menu-suggestion,
+.create-menu-row input,
+.modal-card label,
+.modal-card input { font-size: 13px; }
+.profile-helper,
+.inline-empty-state,
+.toast { font-size: 14px; }
+
+@media (max-width: 560px) {
+  .primary-button,
+  .secondary-button,
+  .complete-button,
+  .add-menu-button { font-size: 14px; }
+  .field-label,
+  .hint-text,
+  .member-name,
+  .food-option-copy strong,
+  .selected-food-row,
+  .payment-person strong { font-size: 14px; }
+  .food-option-copy small,
+  .member-row small,
+  .field-help,
+  .payment-person small,
+  .session-meta,
+  .order-confirm-bar span { font-size: 12px; }
+}

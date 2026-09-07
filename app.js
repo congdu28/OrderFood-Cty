@@ -78,7 +78,6 @@ const dom = {
   sessionModal: $("#sessionModal"),
   newSessionForm: $("#newSessionForm"),
   sessionTitleInput: $("#sessionTitleInput"),
-  restaurantInput: $("#restaurantInput"),
   deadlineInput: $("#deadlineInput"),
   initialMembersInput: $("#initialMembersInput"),
   createMenuRows: $("#createMenuRows"),
@@ -262,6 +261,7 @@ function makeMember(profile, index) {
 }
 
 function normalizeSession(session) {
+  session.restaurant = typeof session.restaurant === "string" ? session.restaurant.trim() : "";
   session.archived = Boolean(session.archived);
   session.deleted = Boolean(session.deleted);
   if (session.status === "locked" || session.status === "completed") session.lockedAt ||= session.createdAt || null;
@@ -886,6 +886,16 @@ function itemSubtotal(member) {
   return member.selections.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0);
 }
 
+function restaurantLabel(session) {
+  const restaurant = String(session?.restaurant || "").trim();
+  return restaurant ? escapeHtml(restaurant) : "";
+}
+
+function restaurantPrefix(session) {
+  const restaurant = restaurantLabel(session);
+  return restaurant ? `${restaurant} · ` : "";
+}
+
 function memberHasSelections(member) {
   return Boolean(member?.selections?.some((selection) => Number(selection.quantity || 0) > 0));
 }
@@ -1052,7 +1062,7 @@ function renderDashboard() {
     dom.activeSessionSummary.className = `card active-session-summary session-surface tone-${tone}`;
     dom.activeSessionSummary.innerHTML = `
       <div class="active-summary-top">
-        <div><p class="eyebrow">${presentation.eyebrow}</p><h3 class="active-summary-name">${escapeHtml(session.title)}</h3><p class="active-summary-restaurant">${escapeHtml(session.restaurant)} · ${presentation.meta}</p></div>
+        <div><p class="eyebrow">${presentation.eyebrow}</p><h3 class="active-summary-name">${escapeHtml(session.title)}</h3><p class="active-summary-restaurant">${restaurantPrefix(session)}${presentation.meta}</p></div>
         <span class="status-chip tone-${tone}">${tone === "archived" ? "Lưu trữ" : statusLabel(session.status)}</span>
       </div>
       <div class="summary-amounts"><div><span>Tổng giá trị đơn</span><strong>${money(total)}</strong></div><div><span>${presentation.secondLabel}</span><strong>${presentation.secondValue}</strong></div></div>
@@ -1117,7 +1127,7 @@ function renderSession() {
 
   dom.sessionSwitcher.disabled = false;
   dom.sessionSwitcher.innerHTML = sessionsForCurrentFilter().map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "✓"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
-  dom.sessionMeta.textContent = `${session.restaurant} · Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
+  dom.sessionMeta.textContent = `${session.restaurant ? `${session.restaurant} · ` : ""}Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
   dom.memberCountBadge.textContent = `${session.members.length} người tham gia`;
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
   dom.billingModeBadge.textContent = session.splitMethod === "equal" ? "Chia đều" : "Theo món";
@@ -1271,7 +1281,7 @@ function renderHistory() {
     const cards = orderedSessions.length ? orderedSessions.map((session) => {
       const canOpen = group.key === "completed" || group.key === "locked";
       const timestamp = group.key === "deleted" ? session.deletedAt : group.key === "archived" ? session.archivedAt : group.key === "completed" ? session.completedAt : session.lockedAt;
-      return `<button class="history-group-session ${canOpen ? "is-clickable" : ""}" type="button" ${canOpen ? `data-open-session="${session.id}"` : ""}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)} · ${formatActionTime(timestamp || session.createdAt)}</small></span><b>${money(totalForSession(session))}</b></button>`;
+      return `<button class="history-group-session ${canOpen ? "is-clickable" : ""}" type="button" ${canOpen ? `data-open-session="${session.id}"` : ""}><span><strong>${escapeHtml(session.title)}</strong><small>${restaurantPrefix(session)}${formatActionTime(timestamp || session.createdAt)}</small></span><b>${money(totalForSession(session))}</b></button>`;
     }).join("") : `<p class="history-group-empty">Chưa có phiên.</p>`;
     return `<article class="history-status-card tone-${group.key}"><div class="history-status-heading"><span class="history-status-icon">${group.icon}</span><div><strong>${group.title}</strong><small>${group.sessions.length} phiên</small></div></div><div class="history-group-list">${cards}</div></article>`;
   }).join("");
@@ -1286,7 +1296,7 @@ function renderHistory() {
   }).join("");
   dom.historyTable.innerHTML = sessions.length ? `
     <div class="history-head"><span>PHIÊN ĐẶT ĐỒ</span><span>THỜI GIAN</span><span>THÀNH VIÊN</span><span>TRẠNG THÁI</span><span>TỔNG TIỀN</span><span>THAO TÁC</span></div>
-    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived || session.deleted ? "" : "is-clickable"}" ${session.archived || session.deleted ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(session.restaurant)}${session.archived || session.deleted ? "" : " · Bấm để xem chi tiết"}</small></span><span>${formatActionTime(session.deletedAt || session.archivedAt || session.completedAt || session.lockedAt || session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.deleted ? "Đã xóa" : session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived && !session.deleted ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
+    ${sessions.map((session) => `<div class="history-row tone-${sessionTone(session)} ${session.archived || session.deleted ? "" : "is-clickable"}" ${session.archived || session.deleted ? "" : `data-open-session="${session.id}"`}><span><strong>${escapeHtml(session.title)}</strong><small>${session.archived || session.deleted ? restaurantLabel(session) : `${restaurantPrefix(session)}Bấm để xem chi tiết`}</small></span><span>${formatActionTime(session.deletedAt || session.archivedAt || session.completedAt || session.lockedAt || session.createdAt)}</span><span>${session.members.length} người</span><span><span class="status-chip tone-${sessionTone(session)}">${session.deleted ? "Đã xóa" : session.archived ? "Lưu trữ" : session.status === "completed" ? "Hoàn thành" : statusLabel(session.status)}</span></span><b>${money(totalForSession(session))}</b><span class="history-actions">${session.archived && !session.deleted ? `<button class="history-action restore" data-restore-session="${session.id}">Khôi phục</button><button class="history-action delete" data-delete-session="${session.id}">Xóa</button>` : ""}</span></div>`).join("")}
   ` : `<div class="history-empty">${archiveOnly ? "Kho lưu trữ đang trống." : deletedOnly ? "Mục Đã xóa đang trống." : "Không có phiên nào trong khoảng thời gian này."}</div>`;
 }
 
@@ -1416,7 +1426,6 @@ function openNewSessionModal() {
     return;
   }
   dom.sessionTitleInput.value = "";
-  dom.restaurantInput.value = "";
   dom.initialMembersInput.value = profile.nickname;
   dom.deadlineInput.value = localDateTimeValue(new Date(Date.now() + 1000 * 60 * 90));
   renderCreateMenuRows([{ name: "", price: undefined }]);
@@ -1442,7 +1451,7 @@ function createSession(event) {
   const session = {
     id: id("session"),
     title: dom.sessionTitleInput.value.trim(),
-    restaurant: dom.restaurantInput.value.trim(),
+    restaurant: "",
     createdAt: new Date().toISOString(),
     deadline: deadline.toISOString(),
     status: "open",
