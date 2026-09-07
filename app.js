@@ -520,6 +520,18 @@ async function upsertRemoteProfile(profile, user = currentAuthUser()) {
   if (error) throw error;
 }
 
+async function tryUpsertRemoteProfile(profile, user = currentAuthUser()) {
+  try {
+    await upsertRemoteProfile(profile, user);
+    return true;
+  } catch (error) {
+    // Nickname vẫn được lưu bền vững trong Supabase Auth metadata.
+    // Bảng profiles chỉ là lớp dữ liệu bổ sung nên không được làm hỏng luồng đăng nhập.
+    console.warn("Chưa thể đồng bộ bảng profiles; đang dùng Auth metadata", error);
+    return false;
+  }
+}
+
 async function hydrateAuthenticatedProfile(user, nicknameFallback = "") {
   if (!supabaseClient || !user) return null;
   const previous = currentProfile();
@@ -528,19 +540,12 @@ async function hydrateAuthenticatedProfile(user, nicknameFallback = "") {
   const result = await supabaseClient.from(PROFILES_TABLE).select("id, nickname, color, provider, avatar_url, updated_at").eq("id", user.id).maybeSingle();
   row = result.data;
   profileError = result.error;
-  if (profileError) console.warn("Không thể đọc hồ sơ Supabase", profileError);
+  if (profileError) console.warn("Chưa thể đọc bảng profiles; đang dùng Auth metadata", profileError);
 
   const profile = profileFromAuthUser(user, row, nicknameFallback);
   if (!profile) return null;
   applyProfile(profile, previous);
-  if (!row) {
-    try {
-      await upsertRemoteProfile(profile, user);
-    } catch (error) {
-      console.error("Không thể lưu hồ sơ Supabase", error);
-      showToast("Đăng nhập được nhưng chưa lưu được nickname. Hãy chạy phần profiles trong supabase-schema.sql.");
-    }
-  }
+  if (!row) await tryUpsertRemoteProfile(profile, user);
   if (!dom.profileModal.hidden) closeProfileModal();
   renderProfileModal();
   return profile;
@@ -581,7 +586,7 @@ async function registerProfile() {
   }
   authSession = data.session;
   await hydrateAuthenticatedProfile(data.user, nickname);
-  showToast("Đã tạo tài khoản và lưu nickname trên Supabase.");
+  showToast("Đã tạo tài khoản và lưu nickname.");
 }
 
 async function loginProfile() {
@@ -603,8 +608,10 @@ async function saveAuthenticatedProfile() {
   if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
   const previous = currentProfile();
   const profile = profileFromAuthUser(user, null, nickname);
-  await upsertRemoteProfile(profile, user);
-  await supabaseClient.auth.updateUser({ data: { nickname, color: profile.color } });
+  const { data, error } = await supabaseClient.auth.updateUser({ data: { nickname, color: profile.color } });
+  if (error) throw error;
+  if (data?.user) authSession = { ...authSession, user: data.user };
+  await tryUpsertRemoteProfile(profile, data?.user || user);
   applyProfile(profile, previous);
   closeProfileModal();
   showToast("Đã cập nhật nickname trên tài khoản.");
