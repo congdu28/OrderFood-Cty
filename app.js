@@ -512,8 +512,17 @@ async function initializeSupabase() {
   }
 }
 
+function currentSessionFilterFor(status) {
+  const requestedStatus = SESSION_STATUSES.includes(status) ? status : "open";
+  const hasOpenSessions = appState.sessions.some((item) => !item.archived && !item.deleted && item.status === "open");
+  const hasLockedSessions = appState.sessions.some((item) => !item.archived && !item.deleted && item.status === "locked");
+  if (requestedStatus === "locked" && !hasLockedSessions && hasOpenSessions) return "open";
+  if (requestedStatus === "open" && !hasOpenSessions && hasLockedSessions) return "locked";
+  return requestedStatus;
+}
+
 function currentSessionFilter() {
-  return SESSION_STATUSES.includes(appState.sessionFilter) ? appState.sessionFilter : "open";
+  return currentSessionFilterFor(appState.sessionFilter);
 }
 
 function sessionsForCurrentFilter() {
@@ -707,12 +716,14 @@ function setView(view) {
 
 function showSessionsByStatus(status) {
   if (!SESSION_STATUSES.includes(status)) return;
-  appState.sessionFilter = status;
+  const resolvedStatus = currentSessionFilterFor(status);
+  appState.sessionFilter = resolvedStatus;
   const sessions = sessionsForCurrentFilter();
   if (!sessions.some((session) => session.id === appState.activeSessionId)) appState.activeSessionId = sessions[0]?.id || null;
   saveState();
   renderAll();
   setView("session");
+  if (resolvedStatus !== status) showToast(`Không có ${sessionFilterLabel(status).toLocaleLowerCase("vi-VN")}; đang hiển thị ${sessionFilterLabel(resolvedStatus).toLocaleLowerCase("vi-VN")}.`);
 }
 
 function renderAll() {
@@ -776,11 +787,18 @@ function renderDashboard() {
 function renderSession() {
   const session = activeSession();
   if (!session) {
+    const hasOpenSessions = appState.sessions.some((item) => !item.archived && !item.deleted && item.status === "open");
+    const hasLockedSessions = appState.sessions.some((item) => !item.archived && !item.deleted && item.status === "locked");
+    const hasNoActiveOrder = !hasOpenSessions && !hasLockedSessions;
     dom.sessionSwitcher.innerHTML = `<option>Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")}</option>`;
     dom.sessionSwitcher.disabled = true;
-    dom.sessionMeta.textContent = `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")}.`;
+    dom.sessionMeta.textContent = hasNoActiveOrder ? "Chưa có đơn đang mở hoặc đã chốt." : `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")}.`;
     dom.statusNotice.classList.add("show");
-    dom.statusNotice.innerHTML = currentSessionFilter() === "open" ? `Chưa có phiên đang mở. Bấm <strong>“Tạo phiên mới”</strong> để bắt đầu.` : `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")} để hiển thị.`;
+    dom.statusNotice.innerHTML = hasNoActiveOrder
+      ? `Hiện chưa có đơn đang mở hoặc đã chốt.<button class="primary-button empty-session-create" type="button" data-open-modal="true">Tạo Đơn Đặt Đồ Mới Ngay</button>`
+      : currentSessionFilter() === "open"
+        ? `Chưa có phiên đang mở. Hãy kiểm tra lại danh sách hoặc bấm <strong>“Tạo phiên mới”</strong>.`
+        : `Chưa có ${sessionFilterLabel().toLocaleLowerCase("vi-VN")} để hiển thị.`;
     [dom.saveSessionBtn, dom.lockSessionBtn, dom.archiveSessionBtn, dom.deleteSessionBtn, dom.closeSessionBtn].forEach((button) => { button.disabled = true; });
     dom.memberPicker.innerHTML = "";
     dom.memberList.innerHTML = "";
