@@ -458,3 +458,20 @@ h3 { font-size: 19px; }
 .order-breakdown-heading span, .order-detail-line, .order-detail-line small, .order-detail-line b { font-size: 11px; }
 .history-group-session small, .history-status-heading small { font-size: 12px; }
 .role-badge { font-size: 10px; }
+
+@media (min-width: 851px) {
+  .notice-strip { font-size: 14px; line-height: 1.5; }
+  .notice-strip .status-subnote { font-size: 12px; }
+  .session-meta, .order-confirm-bar span, .field-help { font-size: 13px; }
+  .order-breakdown-heading strong { font-size: 14px; }
+  .order-breakdown-heading span { font-size: 12px; }
+  .order-breakdown-name strong { font-size: 13px; }
+  .order-breakdown-name > b { font-size: 13px; }
+  .order-detail-line, .order-detail-line small, .order-detail-line b { font-size: 12px; }
+  .order-detail-line em { font-size: 11px; }
+  .payment-person strong { font-size: 14px; }
+  .payment-person small { font-size: 12px; }
+  .payment-amount { font-size: 14px; }
+  .paid-control { font-size: 12px; }
+  .toast { font-size: 13px; }
+}
