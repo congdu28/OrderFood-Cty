@@ -593,7 +593,7 @@ function statusLabel(status) {
 }
 
 function sessionFilterLabel(status = currentSessionFilter()) {
-  return ({ open: "Phiên đang mở", locked: "Phiên đã chốt", completed: "Phiên đã hoàn thành" })[status] || "Phiên đặt đồ";
+  return ({ open: "Phiên đang mở", locked: "Phiên đã chốt", completed: "Đơn Đã Hoàn Tất" })[status] || "Phiên đặt đồ";
 }
 
 function sessionTone(session) {
@@ -835,8 +835,8 @@ function renderSession() {
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
   dom.billingModeBadge.textContent = session.splitMethod === "equal" ? "Chia đều" : "Theo món";
   dom.paymentLockLabel.textContent = session.status === "open" ? "Đang mở" : session.status === "locked" ? "Đã chốt" : "Hoàn tất";
-  dom.paymentLockLabel.style.color = session.status === "open" ? "#16834f" : session.status === "locked" ? "#2563b8" : "#7a1f40";
-  dom.paymentLockLabel.style.borderColor = session.status === "open" ? "#a9ddbb" : session.status === "locked" ? "#b7d3f4" : "#e4b7c6";
+  dom.paymentLockLabel.style.color = session.status === "open" ? "#16834f" : session.status === "locked" ? "#2563b8" : "#117741";
+  dom.paymentLockLabel.style.borderColor = session.status === "open" ? "#a9ddbb" : session.status === "locked" ? "#b7d3f4" : "#9ad4aa";
 
   dom.statusNotice.className = `notice-strip show tone-${sessionTone(session)}`;
   if (session.status === "open") {
@@ -846,7 +846,7 @@ function renderSession() {
   } else if (session.status === "locked") {
     dom.statusNotice.innerHTML = `<strong>Đã chốt số tiền.</strong> Chuyển khoản xong, chính bạn có thể tick “Đã chuyển”.<small class="status-subnote">Đang chờ giao hàng · Chốt lúc ${formatActionTime(session.lockedAt)}</small>`;
   } else {
-    dom.statusNotice.innerHTML = `<strong>Phiên đã hoàn tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.<small class="status-subnote">Hoàn thành lúc ${formatActionTime(session.completedAt)}</small>`;
+    dom.statusNotice.innerHTML = `<strong>Đơn Đã Hoàn Tất.</strong> Dữ liệu vẫn được lưu trong lịch sử để tra cứu theo thời gian.<small class="status-subnote">Hoàn thành lúc ${formatActionTime(session.completedAt)}</small>`;
   }
 
   dom.saveSessionBtn.disabled = session.status === "completed";

@@ -476,6 +476,16 @@ h3 { font-size: 19px; }
   .toast { font-size: 13px; }
 }
 
+/* Trạng thái đơn đã hoàn tất: dùng xanh lá đồng bộ ở tab và màn hình chi tiết */
+.nav-link[data-session-status="completed"] { color: #c2ebce; }
+.nav-link[data-session-status="completed"] strong { font-weight: 850; letter-spacing: .01em; }
+.nav-link[data-session-status="completed"].is-active { color: #f1fff4; background: linear-gradient(90deg, rgba(52, 167, 92, .34), rgba(52, 167, 92, .16)); box-shadow: inset 4px 0 0 #64d184, 0 6px 16px rgba(24, 108, 57, .18); }
+.nav-link[data-session-status="completed"].is-active span:first-child { color: #a8f2ba; }
+.session-surface.tone-completed { background: linear-gradient(135deg, #e7f8ec, #fbfffc); border-color: #63b878; box-shadow: 0 12px 28px rgba(24, 108, 57, .14); }
+.status-chip.tone-completed { background: #d7f1df; color: #117741; }
+.notice-strip.tone-completed { background: #e5f8eb; border: 1px solid #a9ddb7; color: #176d42; }
+.notice-strip.tone-completed strong { color: #0f6537; }
+
 .paid-control {
   min-height: 43px;
   padding: 8px 11px;
