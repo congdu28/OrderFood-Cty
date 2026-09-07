@@ -1,5 +1,6 @@
 const STORAGE_KEY = "an-chung-food-order-v1";
 const SUPABASE_TABLE = "food_order_sessions";
+const PROFILES_TABLE = "profiles";
 const AVATAR_COLORS = ["#f36b45", "#628d76", "#6d7bc0", "#d78c38", "#b76c91", "#4d99a7"];
 const SESSION_STATUSES = ["open", "locked", "completed"];
 const ADMIN_USERNAME = "admin";
@@ -82,9 +83,20 @@ const dom = {
   profileName: $("#profileName"),
   profileStatus: $("#profileStatus"),
   profileModal: $("#profileModal"),
+  profileModalTitle: $("#profileModalTitle"),
+  profileModalIntro: $("#profileModalIntro"),
   profileForm: $("#profileForm"),
+  profileAuthMode: $("#profileAuthMode"),
+  profileModeButtons: $$("[data-profile-mode]"),
+  profileEmailField: $("#profileEmailField"),
+  profileEmailInput: $("#profileEmailInput"),
+  profilePasswordField: $("#profilePasswordField"),
+  profilePasswordInput: $("#profilePasswordInput"),
+  profileNicknameField: $("#profileNicknameField"),
   profileNicknameInput: $("#profileNicknameInput"),
   profileAuthHint: $("#profileAuthHint"),
+  profileSubmitBtn: $("#profileSubmitBtn"),
+  profileSignOutBtn: $("#profileSignOutBtn"),
   profileCancelBtn: $("#profileCancelBtn"),
   adminLoginBtn: $("#adminLoginBtn"),
   adminLogoutBtn: $("#adminLogoutBtn"),
@@ -101,6 +113,8 @@ const dom = {
 };
 
 let supabaseClient = null;
+let authSession = null;
+let profileAuthMode = "signup";
 let profileModalRequired = false;
 let remoteSessionIds = new Set();
 let remoteSyncTimer = null;
@@ -132,6 +146,55 @@ function normalizeProfile(profile) {
 
 function currentProfile() {
   return normalizeProfile(appState.profile);
+}
+
+function currentAuthUser() {
+  return authSession?.user || null;
+}
+
+function authAvailable() {
+  return Boolean(supabaseClient);
+}
+
+function profileFromAuthUser(user, row = null, nickname = "") {
+  if (!user?.id) return null;
+  const metadata = user.user_metadata || {};
+  const fallbackNickname = nickname || metadata.nickname || currentProfile()?.nickname || user.email?.split("@")[0] || "Thành viên";
+  return normalizeProfile({
+    id: user.id,
+    nickname: row?.nickname || fallbackNickname,
+    color: row?.color || metadata.color || colorForIdentity(user.id),
+    provider: "email",
+    avatarUrl: row?.avatar_url || metadata.avatar_url || "",
+    updatedAt: row?.updated_at || new Date().toISOString()
+  });
+}
+
+function applyProfileToSessions(profile, previous = null) {
+  const previousId = previous?.id;
+  const creatorIds = new Set([profile.id, previousId].filter(Boolean).map(String));
+  appState.sessions.forEach((session) => {
+    const creatorMatches = creatorIds.has(String(session.creatorProfileId || "")) || creatorIds.has(String(session.creatorMemberId || ""));
+    if (creatorMatches) {
+      session.creatorProfileId = profile.id;
+      session.creatorName = profile.nickname;
+      session.creatorColor = profile.color;
+    }
+    session.adminProfileIds = (session.adminProfileIds || []).map((idValue) => String(idValue) === String(previousId) ? profile.id : String(idValue));
+    session.members.forEach((member) => {
+      const memberMatches = creatorIds.has(String(member.profileId || "")) || creatorIds.has(String(member.id || ""));
+      if (memberMatches) {
+        member.profileId = profile.id;
+        member.name = profile.nickname;
+        member.color = profile.color;
+      }
+    });
+    session.adminProfileIds = [...new Set(session.adminProfileIds)];
+    if (session.creatorProfileId === profile.id) {
+      session.creatorName = profile.nickname;
+      session.creatorColor = profile.color;
+    }
+  });
 }
 
 function readAdminSession() {
@@ -298,7 +361,9 @@ function renderProfileControl() {
   dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
   dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
   dom.profileName.textContent = profile?.nickname || "Chọn nickname";
-  dom.profileStatus.textContent = profile ? (isGlobalAdmin() ? "ADMIN đã đăng nhập" : "Nickname đã lưu") : "Chưa thiết lập";
+  dom.profileStatus.textContent = profile
+    ? (isGlobalAdmin() ? "ADMIN đã đăng nhập" : currentAuthUser()?.email || "Nickname đã lưu")
+    : "Chưa thiết lập";
 }
 
 function renderAdminControl() {
@@ -308,15 +373,66 @@ function renderAdminControl() {
   dom.adminStatus.textContent = authenticated ? "Đã mở toàn quyền trang" : "Chỉ dành cho quản trị";
 }
 
+function setProfileAuthMode(mode) {
+  const profile = currentProfile();
+  const authenticated = Boolean(currentAuthUser());
+  profileAuthMode = authenticated ? "profile" : authAvailable() ? (mode === "login" ? "login" : "signup") : "local";
+  const isSignup = profileAuthMode === "signup";
+  const isLogin = profileAuthMode === "login";
+  const isProfile = profileAuthMode === "profile";
+  const isLocal = profileAuthMode === "local";
+  const showAuthFields = isSignup || isLogin;
+
+  dom.profileAuthMode.hidden = isLocal || isProfile;
+  dom.profileEmailField.hidden = !showAuthFields;
+  dom.profilePasswordField.hidden = !showAuthFields;
+  dom.profileNicknameField.hidden = isLogin;
+  dom.profileSignOutBtn.hidden = !isProfile;
+  dom.profileEmailInput.required = showAuthFields;
+  dom.profilePasswordInput.required = showAuthFields;
+  dom.profileNicknameInput.required = !isLogin;
+  dom.profilePasswordInput.autocomplete = isLogin ? "current-password" : "new-password";
+  dom.profileModeButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.profileMode === profileAuthMode));
+
+  if (isSignup) {
+    dom.profileModalTitle.textContent = "Tạo tài khoản để dùng lâu dài";
+    dom.profileModalIntro.textContent = "Dùng email và mật khẩu để giữ nickname, quyền tham gia và lịch sử trên mọi thiết bị.";
+    dom.profileAuthHint.textContent = "Sau khi tạo, bạn có thể đăng nhập lại từ bất kỳ thiết bị nào.";
+    dom.profileSubmitBtn.textContent = "Tạo tài khoản →";
+  } else if (isLogin) {
+    dom.profileModalTitle.textContent = "Đăng nhập tài khoản";
+    dom.profileModalIntro.textContent = "Đăng nhập để dùng nickname và lịch sử đặt món đã lưu.";
+    dom.profileAuthHint.textContent = "Nếu chưa có tài khoản, hãy chọn Tạo tài khoản.";
+    dom.profileSubmitBtn.textContent = "Đăng nhập →";
+  } else if (isProfile) {
+    dom.profileModalTitle.textContent = "Hồ sơ của bạn";
+    dom.profileModalIntro.textContent = currentAuthUser()?.email ? `Đã đăng nhập bằng ${currentAuthUser().email}.` : "Nickname của bạn sẽ được dùng trong các phiên đặt món.";
+    dom.profileAuthHint.textContent = "Nickname được lưu trong tài khoản Supabase và dùng lại trên mọi thiết bị.";
+    dom.profileSubmitBtn.textContent = "Lưu nickname →";
+  } else {
+    dom.profileModalTitle.textContent = "Bạn muốn được gọi là gì?";
+    dom.profileModalIntro.textContent = "Nickname sẽ tự điền khi bạn tham gia các đơn đặt đồ sau này.";
+    dom.profileAuthHint.textContent = "Chưa kết nối Supabase nên nickname chỉ được lưu trên trình duyệt này.";
+    dom.profileSubmitBtn.textContent = "Lưu nickname →";
+  }
+  dom.profileEmailInput.value = currentAuthUser()?.email || dom.profileEmailInput.value || "";
+  dom.profileEmailInput.disabled = isProfile;
+  dom.profilePasswordInput.value = "";
+  dom.profileNicknameInput.value = profile?.nickname || dom.profileNicknameInput.value || "";
+  dom.profileCancelBtn.hidden = !profile || profileModalRequired;
+}
+
+function renderProfileModal() {
+  setProfileAuthMode(profileAuthMode);
+}
+
 function openProfileModal(required = !currentProfile()) {
   profileModalRequired = required;
-  const profile = currentProfile();
-  dom.profileNicknameInput.value = profile?.nickname || "";
-  dom.profileAuthHint.textContent = "Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.";
-  dom.profileCancelBtn.hidden = !profile || required;
+  profileAuthMode = currentAuthUser() ? "profile" : authAvailable() ? "signup" : "local";
+  renderProfileModal();
   dom.profileModal.hidden = false;
   dom.profileModal.setAttribute("aria-hidden", "false");
-  setTimeout(() => dom.profileNicknameInput.focus(), 20);
+  setTimeout(() => (dom.profileAuthMode.hidden ? dom.profileNicknameInput : dom.profileEmailInput).focus(), 20);
 }
 
 function closeProfileModal() {
@@ -377,10 +493,54 @@ function logoutAdmin() {
   showToast("Đã đăng xuất tài khoản Admin.");
 }
 
-function saveProfile(event) {
-  event.preventDefault();
-  const nickname = dom.profileNicknameInput.value.trim();
-  if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
+function applyProfile(profile, previous = null) {
+  appState.profile = profile;
+  appState.selectedMemberId = profile.id;
+  applyProfileToSessions(profile, previous);
+  saveState();
+  renderAll();
+}
+
+async function upsertRemoteProfile(profile, user = currentAuthUser()) {
+  if (!supabaseClient || !user || !profile) return;
+  const { error } = await supabaseClient.from(PROFILES_TABLE).upsert({
+    id: user.id,
+    nickname: profile.nickname,
+    color: profile.color,
+    provider: "email",
+    avatar_url: profile.avatarUrl || "",
+    updated_at: new Date().toISOString()
+  }, { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function hydrateAuthenticatedProfile(user, nicknameFallback = "") {
+  if (!supabaseClient || !user) return null;
+  const previous = currentProfile();
+  let row = null;
+  let profileError = null;
+  const result = await supabaseClient.from(PROFILES_TABLE).select("id, nickname, color, provider, avatar_url, updated_at").eq("id", user.id).maybeSingle();
+  row = result.data;
+  profileError = result.error;
+  if (profileError) console.warn("Không thể đọc hồ sơ Supabase", profileError);
+
+  const profile = profileFromAuthUser(user, row, nicknameFallback);
+  if (!profile) return null;
+  applyProfile(profile, previous);
+  if (!row) {
+    try {
+      await upsertRemoteProfile(profile, user);
+    } catch (error) {
+      console.error("Không thể lưu hồ sơ Supabase", error);
+      showToast("Đăng nhập được nhưng chưa lưu được nickname. Hãy chạy phần profiles trong supabase-schema.sql.");
+    }
+  }
+  if (!dom.profileModal.hidden) closeProfileModal();
+  renderProfileModal();
+  return profile;
+}
+
+function saveLocalProfile(nickname) {
   const previous = currentProfile();
   const profile = normalizeProfile({
     id: previous?.id || id("profile"),
@@ -388,25 +548,94 @@ function saveProfile(event) {
     color: previous?.color || colorForIdentity(nickname),
     provider: "nickname"
   });
-
-  appState.profile = profile;
-  appState.selectedMemberId = profile.id;
-  appState.sessions.forEach((session) => {
-    if (session.creatorProfileId === profile.id || session.creatorMemberId === profile.id) {
-      session.creatorName = profile.nickname;
-      session.creatorColor = profile.color;
-    }
-    session.members.forEach((member) => {
-      if (member.profileId === profile.id || member.id === profile.id) {
-        member.name = profile.nickname;
-        member.color = profile.color;
-      }
-    });
-  });
-  saveState();
-  renderAll();
+  applyProfile(profile, previous);
   closeProfileModal();
   showToast("Đã lưu nickname trên thiết bị này.");
+}
+
+async function registerProfile() {
+  const email = dom.profileEmailInput.value.trim().toLowerCase();
+  const password = dom.profilePasswordInput.value;
+  const nickname = dom.profileNicknameInput.value.trim();
+  if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
+  if (!email || !email.includes("@")) return showToast("Hãy nhập email hợp lệ.");
+  if (password.length < 6) return showToast("Mật khẩu cần ít nhất 6 ký tự.");
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: { data: { nickname, color: colorForIdentity(email) } }
+  });
+  if (error) throw error;
+  if (!data.session || !data.user) {
+    dom.profileAuthHint.textContent = "Tài khoản đã tạo. Hãy mở email xác nhận, sau đó chọn Đăng nhập.";
+    dom.profileAuthHint.classList.remove("is-error");
+    dom.profilePasswordInput.value = "";
+    showToast("Đã tạo tài khoản. Hãy kiểm tra email để xác nhận.");
+    return;
+  }
+  authSession = data.session;
+  await hydrateAuthenticatedProfile(data.user, nickname);
+  showToast("Đã tạo tài khoản và lưu nickname trên Supabase.");
+}
+
+async function loginProfile() {
+  const email = dom.profileEmailInput.value.trim().toLowerCase();
+  const password = dom.profilePasswordInput.value;
+  if (!email || !email.includes("@")) return showToast("Hãy nhập email hợp lệ.");
+  if (!password) return showToast("Hãy nhập mật khẩu.");
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  authSession = data.session;
+  await hydrateAuthenticatedProfile(data.user);
+  showToast("Đăng nhập thành công.");
+}
+
+async function saveAuthenticatedProfile() {
+  const user = currentAuthUser();
+  const nickname = dom.profileNicknameInput.value.trim();
+  if (!user) return showToast("Phiên đăng nhập đã hết. Hãy đăng nhập lại.");
+  if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
+  const previous = currentProfile();
+  const profile = profileFromAuthUser(user, null, nickname);
+  await upsertRemoteProfile(profile, user);
+  await supabaseClient.auth.updateUser({ data: { nickname, color: profile.color } });
+  applyProfile(profile, previous);
+  closeProfileModal();
+  showToast("Đã cập nhật nickname trên tài khoản.");
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  if (profileAuthMode === "local") {
+    const nickname = dom.profileNicknameInput.value.trim();
+    if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
+    return saveLocalProfile(nickname);
+  }
+  if (!supabaseClient) return showToast("Supabase chưa sẵn sàng. Hãy tải lại trang rồi thử lại.");
+  dom.profileSubmitBtn.disabled = true;
+  dom.profileAuthHint.classList.remove("is-error");
+  dom.profileAuthHint.textContent = profileAuthMode === "login" ? "Đang đăng nhập..." : profileAuthMode === "signup" ? "Đang tạo tài khoản..." : "Đang lưu nickname...";
+  try {
+    if (profileAuthMode === "signup") await registerProfile();
+    else if (profileAuthMode === "login") await loginProfile();
+    else await saveAuthenticatedProfile();
+  } catch (error) {
+    console.error("Không thể xử lý tài khoản Supabase", error);
+    dom.profileAuthHint.textContent = error.message || "Không thể xử lý tài khoản. Hãy kiểm tra email, mật khẩu và cấu hình Supabase.";
+    dom.profileAuthHint.classList.add("is-error");
+  } finally {
+    dom.profileSubmitBtn.disabled = false;
+  }
+}
+
+async function signOutProfile() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    console.error("Không thể đăng xuất Supabase", error);
+    return showToast("Không thể đăng xuất. Hãy thử lại.");
+  }
+  closeProfileModal();
 }
 
 function queueRemoteSync() {
@@ -488,6 +717,24 @@ function subscribeToRemoteSessions() {
     });
 }
 
+function handleAuthStateChange(session) {
+  authSession = session;
+  if (session?.user) {
+    setTimeout(() => {
+      hydrateAuthenticatedProfile(session.user).catch((error) => console.error("Không thể tải hồ sơ đăng nhập", error));
+    }, 0);
+    return;
+  }
+  appState.profile = null;
+  appState.selectedMemberId = null;
+  saveState();
+  renderAll();
+  if (!dom.profileModal.hidden) {
+    profileAuthMode = authAvailable() ? "login" : "local";
+    renderProfileModal();
+  }
+}
+
 async function initializeSupabase() {
   const config = getSupabaseConfig();
   if (!config) {
@@ -498,7 +745,12 @@ async function initializeSupabase() {
   try {
     setConnectionNote("Đang kết nối Supabase...");
     supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError) throw sessionError;
+    authSession = sessionData.session;
+    supabaseClient.auth.onAuthStateChange((_event, session) => handleAuthStateChange(session));
     await loadRemoteSessions();
+    if (authSession?.user) await hydrateAuthenticatedProfile(authSession.user);
     subscribeToRemoteSessions();
     renderAll();
     setConnectionNote("Supabase · đang đồng bộ", true);
@@ -506,6 +758,7 @@ async function initializeSupabase() {
   } catch (error) {
     console.error("Không thể khởi tạo Supabase", error);
     supabaseClient = null;
+    authSession = null;
     setConnectionNote("Không kết nối được Supabase");
     showToast("Supabase chưa sẵn sàng. Hãy chạy schema SQL và kiểm tra lại cấu hình.");
     if (!currentProfile()) openProfileModal(true);
@@ -1289,6 +1542,13 @@ function bindEvents() {
   dom.sessionModal.addEventListener("click", (event) => { if (event.target === dom.sessionModal) closeNewSessionModal(); });
   dom.profileButton.addEventListener("click", () => openProfileModal(false));
   dom.profileForm.addEventListener("submit", saveProfile);
+  dom.profileAuthMode.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-profile-mode]");
+    if (!button || currentAuthUser()) return;
+    setProfileAuthMode(button.dataset.profileMode);
+    setTimeout(() => (profileAuthMode === "login" ? dom.profileEmailInput : dom.profileNicknameInput).focus(), 20);
+  });
+  dom.profileSignOutBtn.addEventListener("click", signOutProfile);
   dom.profileCancelBtn.addEventListener("click", closeProfileModal);
   dom.adminLoginBtn.addEventListener("click", openAdminLoginModal);
   dom.adminLogoutBtn.addEventListener("click", logoutAdmin);

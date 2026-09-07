@@ -28,6 +28,32 @@ create policy "test users can update food orders"
 create policy "test users can delete food orders"
   on public.food_order_sessions for delete to anon, authenticated using (true);
 
+-- Hồ sơ tài khoản email. Nickname được lưu theo auth.users để dùng lại trên mọi thiết bị.
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  nickname text not null check (char_length(trim(nickname)) between 1 and 30),
+  color text not null default '#628d76',
+  provider text not null default 'email',
+  avatar_url text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+grant select, insert, update on public.profiles to authenticated;
+
+drop policy if exists "users can read own profile" on public.profiles;
+drop policy if exists "users can insert own profile" on public.profiles;
+drop policy if exists "users can update own profile" on public.profiles;
+
+create policy "users can read own profile"
+  on public.profiles for select to authenticated using (auth.uid() = id);
+create policy "users can insert own profile"
+  on public.profiles for insert to authenticated with check (auth.uid() = id);
+create policy "users can update own profile"
+  on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+
 -- Bật Realtime cho thay đổi phiên đặt đồ. Khối DO giúp chạy lại SQL an toàn.
 do $$
 begin

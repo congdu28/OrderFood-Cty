@@ -265,14 +265,21 @@
     <div class="modal-backdrop" id="profileModal" hidden aria-hidden="true">
       <section class="modal-card profile-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
         <p class="eyebrow">HỒ SƠ CỦA BẠN</p>
-        <h2 id="profileModalTitle">Bạn muốn được gọi là gì?</h2>
-        <p class="modal-intro">Nickname sẽ tự điền khi bạn tham gia các đơn đặt đồ sau này.</p>
+        <h2 id="profileModalTitle">Tạo tài khoản để dùng lâu dài</h2>
+        <p class="modal-intro" id="profileModalIntro">Dùng email và mật khẩu để giữ nickname, quyền tham gia và lịch sử trên mọi thiết bị.</p>
         <form id="profileForm">
-          <label>Nickname<input id="profileNicknameInput" type="text" placeholder="Ví dụ: Mèo đói" required maxlength="30" autocomplete="nickname" /></label>
-          <p class="profile-helper" id="profileAuthHint">Nickname được lưu trên trình duyệt này và tự dùng lại khi bạn quay lại website.</p>
+          <div class="profile-auth-mode" id="profileAuthMode" role="tablist" aria-label="Chọn thao tác tài khoản">
+            <button type="button" class="profile-mode-button is-active" data-profile-mode="signup">Tạo tài khoản</button>
+            <button type="button" class="profile-mode-button" data-profile-mode="login">Đăng nhập</button>
+          </div>
+          <label id="profileEmailField">Email<input id="profileEmailInput" type="email" placeholder="ban@example.com" autocomplete="email" inputmode="email" /></label>
+          <label id="profilePasswordField">Mật khẩu<input id="profilePasswordInput" type="password" placeholder="Ít nhất 6 ký tự" autocomplete="new-password" minlength="6" /></label>
+          <label id="profileNicknameField">Nickname<input id="profileNicknameInput" type="text" placeholder="Ví dụ: Mèo đói" maxlength="30" autocomplete="nickname" /></label>
+          <p class="profile-helper" id="profileAuthHint">Tài khoản Supabase giúp bạn đăng nhập lại trên máy khác.</p>
           <div class="modal-actions">
+            <button class="secondary-button" id="profileSignOutBtn" type="button" hidden>Đăng xuất</button>
             <button class="secondary-button" id="profileCancelBtn" type="button" hidden>Hủy</button>
-            <button class="primary-button modal-submit" type="submit">Lưu nickname →</button>
+            <button class="primary-button modal-submit" id="profileSubmitBtn" type="submit">Tạo tài khoản →</button>
           </div>
         </form>
       </section>

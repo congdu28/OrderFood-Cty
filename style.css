@@ -505,3 +505,12 @@ h3 { font-size: 19px; }
   .paid-control input { width: 23px; height: 23px; }
   .paid-control input:checked::after { left: 3px; top: 0; font-size: 15px; }
 }
+
+/* Tài khoản Supabase Auth */
+.profile-auth-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; margin: -2px 0 2px; border: 1px solid #dbe6dc; border-radius: 10px; background: #f4f8f4; }
+.profile-mode-button { border: 0; border-radius: 7px; padding: 9px 8px; background: transparent; color: #617068; font-size: 12px; font-weight: 750; cursor: pointer; }
+.profile-mode-button:hover { color: #176d42; background: #e8f6eb; }
+.profile-mode-button.is-active { background: #d9f1df; color: #126c39; box-shadow: 0 1px 3px rgba(24, 108, 57, .12); }
+.profile-modal-card input:disabled { background: #f3f5f2; color: #738078; cursor: not-allowed; }
+.profile-modal-card .modal-actions { align-items: center; }
+.profile-modal-card .modal-actions .secondary-button { white-space: nowrap; }

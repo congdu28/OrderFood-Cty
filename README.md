@@ -19,9 +19,9 @@ Mở trực tiếp file `index.html` bằng trình duyệt. Dự án không dùn
 7. Menu trái có khu vực **Đăng nhập quản trị**. Tài khoản Admin sau khi đăng nhập có thể quản lý mọi phiên và quyền trên trang. Ngoài ra, người tạo là **ADMIN** mặc định trong phiên và có thể đặt hoặc gỡ quyền ADMIN cho người đang tham gia; ADMIN được sửa cách chia, phí/phát sinh, thông tin thanh toán, quản lý người tham gia, **Hoàn thành đơn** và **xóa** phiên. Giá món có sẵn được cố định ngay khi tạo phiên. Phiên xóa được đưa vào mục **Đã xóa** để lịch sử không mất dữ liệu. Thao tác không có quyền sẽ hiện thông báo rõ ràng.
 8. Hoàn tất phiên để giữ lại số liệu trong màn Lịch sử; có bộ lọc ngày, tuần, tháng, năm và nút xuất JSON.
 
-## Lưu ý của MVP
+## Tài khoản và dữ liệu
 
-Dữ liệu phiên đặt đồ được đồng bộ vào Supabase nếu đã cấu hình. Nickname được lưu bằng `localStorage`, nên chỉ dùng lại được trên chính trình duyệt/thiết bị đã tạo. Muốn đổi nickname, bấm vào avatar ở góc phải hoặc nút **Đổi nickname**.
+Dữ liệu phiên đặt đồ được đồng bộ vào Supabase nếu đã cấu hình. Người dùng có thể tạo tài khoản bằng email + mật khẩu; nickname được lưu trong bảng `profiles` gắn với `auth.users`, nên đăng nhập từ thiết bị khác vẫn dùng lại được. Nếu chưa chạy phần `profiles` trong schema, website vẫn có chế độ nickname cục bộ để test.
 
 Menu trái lọc riêng **phiên đang mở**, **phiên đã chốt** và **phiên đã hoàn thành**; ô chọn phiên chỉ hiển thị đúng nhóm đang chọn. Tổng quan luôn ưu tiên phiên đang mở, sau đó là phiên người dùng vừa chọn và phiên đã chốt. Lịch sử có bốn ô: **Đã hoàn thành**, **Đã chốt**, **Lưu trữ** và **Đã xóa**.
 
@@ -40,8 +40,9 @@ window.SUPABASE_CONFIG = {
 };
 ```
 
-4. Tải lại website trên từ hai trình duyệt hoặc hai thiết bị. Góc trái sẽ hiện **Supabase · đồng bộ trực tiếp** khi kết nối thành công.
+4. Trong Supabase, mở **Authentication → Providers → Email** và bật Email provider. Có thể tắt **Confirm email** khi test nội bộ hoặc giữ bật để yêu cầu xác nhận email.
+5. Tải lại website trên từ hai trình duyệt hoặc hai thiết bị. Góc trái sẽ hiện **Supabase · đồng bộ trực tiếp** khi kết nối thành công. Lần đầu vào trang, chọn **Tạo tài khoản**, nhập email, mật khẩu và nickname.
 
-Trong lúc test, schema của `food_order_sessions` mở quyền đọc/ghi cho mọi người có link để dễ đồng bộ. Đăng nhập Admin hiện được lưu trong `sessionStorage` của trình duyệt. Vì đây vẫn là frontend tĩnh, người có quyền truy cập mã nguồn có thể kiểm tra hoặc thay đổi cơ chế xác thực; khi dùng nội bộ thực tế, nên bổ sung Supabase Auth và RLS để bảo vệ quyền quản trị ở cấp database.
+Trong lúc test, schema của `food_order_sessions` mở quyền đọc/ghi cho mọi người có link để dễ đồng bộ. Bảng `profiles` chỉ cho tài khoản đã đăng nhập đọc/ghi hồ sơ của chính mình bằng RLS. Đăng nhập Admin hiện vẫn là lớp quản trị riêng của giao diện; khi dùng nội bộ thực tế, nên chuyển quyền quản trị sang RLS hoặc Edge Function để bảo vệ ở cấp database.
 
 Không bao giờ dán `service_role key` vào `supabase-config.js` hoặc đưa lên website.
