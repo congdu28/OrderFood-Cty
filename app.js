@@ -831,7 +831,7 @@ function renderSession() {
   dom.sessionSwitcher.disabled = false;
   dom.sessionSwitcher.innerHTML = sessionsForCurrentFilter().map((item) => `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${item.status === "open" ? "●" : item.status === "locked" ? "◆" : "✓"} ${escapeHtml(item.title)} · ${statusLabel(item.status)}</option>`).join("");
   dom.sessionMeta.textContent = `${session.restaurant} · Tạo ngày ${shortDate(session.createdAt)} · Hạn chốt ${formatDeadline(session.deadline)}`;
-  dom.memberCountBadge.textContent = `${session.members.filter(memberHasSelections).length} người`;
+  dom.memberCountBadge.textContent = `${session.members.length} người tham gia`;
   dom.currentOrderCount.textContent = `${selectedCount} phần`;
   dom.billingModeBadge.textContent = session.splitMethod === "equal" ? "Chia đều" : "Theo món";
   dom.paymentLockLabel.textContent = session.status === "open" ? "Đang mở" : session.status === "locked" ? "Đã chốt" : "Hoàn tất";
