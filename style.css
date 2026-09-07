@@ -514,3 +514,22 @@ h3 { font-size: 19px; }
 .profile-modal-card input:disabled { background: #f3f5f2; color: #738078; cursor: not-allowed; }
 .profile-modal-card .modal-actions { align-items: center; }
 .profile-modal-card .modal-actions .secondary-button { white-space: nowrap; }
+
+/* Luồng thao tác rõ theo từng trạng thái đơn */
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(52, 133, 210, .3); outline-offset: 2px; }
+#heroCreateBtn { min-height: 46px; padding: 12px 18px; font-size: 14px; }
+.dashboard-session-cta { min-width: 188px; }
+.dashboard-session-cta.tone-completed { border-width: 2px; font-weight: 900; }
+.mini-history-row.is-static { cursor: default; opacity: .86; }
+.session-actions-panel[hidden], #sessionWorkspace[hidden] { display: none !important; }
+.session-actions-panel .toolbar-actions button[hidden] { display: none !important; }
+.order-confirm-bar.is-readonly { background: #f0f5f1; border-color: #d4e2d7; color: #52645a; }
+.order-confirm-bar.is-readonly span { font-weight: 700; line-height: 1.5; }
+.inline-empty-state { margin: 4px 0 0; padding: 18px 14px; border: 1px dashed #d6e2d8; border-radius: 11px; background: #f8fbf8; color: #69776f; font-size: 13px; line-height: 1.5; text-align: center; }
+.notice-strip.tone-empty { border: 1px solid #cfded2; background: #f4f8f5; color: #53665a; }
+
+@media (max-width: 560px) {
+  #heroCreateBtn, .dashboard-session-cta { width: 100%; }
+  .summary-footer { align-items: stretch; flex-direction: column; gap: 13px; }
+  .avatar-stack { min-height: 29px; }
+}

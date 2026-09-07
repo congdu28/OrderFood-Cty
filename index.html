@@ -85,7 +85,7 @@
               <p class="eyebrow light">NHÓM CÙNG ĂN</p>
               <h2>Đặt một lần,<br />mọi người trả thật gọn.</h2>
               <p>Tạo đơn, gom món, chốt tổng tiền và theo dõi chuyển khoản trong một nơi.</p>
-              <button class="primary-button" id="heroCreateBtn">＋ Tạo đơn đặt đồ</button>
+              <button class="primary-button" id="heroCreateBtn" type="button">＋ Tạo đơn đặt đồ</button>
             </div>
             <div class="hero-illustration" aria-hidden="true">
               <div class="sun"></div>
@@ -120,21 +120,21 @@
               </div>
               <div class="session-meta" id="sessionMeta"></div>
             </div>
-            <details class="session-actions-panel" open>
-              <summary><span>Thao tác đơn</span><small>Bấm để thu gọn</small></summary>
+            <details class="session-actions-panel" id="sessionActionsPanel" open>
+              <summary><span id="sessionActionsTitle">Thao tác đơn</span><small id="sessionActionsHint">Bấm để thu gọn</small></summary>
               <div class="toolbar-actions">
-                <button class="secondary-button" id="saveSessionBtn">Lưu thay đổi</button>
+                <button class="secondary-button" id="saveSessionBtn">Lưu ngay</button>
                 <button class="primary-button" id="lockSessionBtn">Chốt &amp; Gửi tổng tiền</button>
+                <button class="complete-button" id="closeSessionBtn">✓ Hoàn thành đơn</button>
                 <button class="secondary-button archive-button" id="archiveSessionBtn">⌑ Lưu trữ</button>
                 <button class="secondary-button delete-button" id="deleteSessionBtn">⌫ Xóa đơn</button>
-                <button class="complete-button" id="closeSessionBtn">✓ Hoàn thành đơn</button>
               </div>
             </details>
           </div>
 
           <div class="notice-strip" id="statusNotice"></div>
 
-          <div class="workspace-grid">
+          <div class="workspace-grid" id="sessionWorkspace">
             <article class="card member-card">
               <div class="card-heading">
                 <div><p class="eyebrow">NGƯỜI ĐANG ĐẶT</p><h3>Chọn món của bạn</h3></div>
@@ -143,8 +143,8 @@
               <label class="field-label" for="memberPicker">Tài khoản đang dùng</label>
               <div class="select-wrap"><select id="memberPicker"></select></div>
               <div class="join-nickname">
-                <p>Nickname được lưu trên trình duyệt này và tự dùng lại ở các phiên sau.</p>
-                <button class="text-button" id="changeNicknameBtn" type="button">Đổi nickname</button>
+                <p>Tài khoản và nickname được đồng bộ để dùng lại trên các thiết bị khác.</p>
+                <button class="text-button" id="changeNicknameBtn" type="button">Quản lý tài khoản</button>
               </div>
               <div class="member-list" id="memberList"></div>
             </article>
@@ -191,7 +191,7 @@
               <div class="split-methods" role="radiogroup" aria-label="Cách tính tiền">
                 <label class="split-option" id="equalSplitOption">
                   <input type="radio" name="splitMethod" value="equal" />
-                  <span><strong>Chia đều</strong><small>Nhập tổng hóa đơn, chia cho người tham gia</small></span>
+                  <span><strong>Chia đều</strong><small>Nhập tổng hóa đơn, chia cho người đã chọn món</small></span>
                 </label>
                 <label class="split-option" id="itemSplitOption">
                   <input type="radio" name="splitMethod" value="item" />
@@ -210,7 +210,7 @@
                   <label>Phí ship / phát sinh<div class="money-input"><input id="deliveryFeeInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                   <label>Giảm giá<div class="money-input"><input id="discountInput" type="number" min="0" step="1000" /><span>đ</span></div></label>
                 </div>
-                <p class="field-help">Giá món đã cố định khi tạo đơn. Phí ship và giảm giá được chia đều cho người tham gia.</p>
+                <p class="field-help">Giá món lấy từ thực đơn. Phí ship và giảm giá được chia đều cho người đã chọn món.</p>
               </div>
               <div class="billing-total" id="billingTotal"></div>
               <div class="order-breakdown" id="orderBreakdown"></div>
