@@ -122,11 +122,13 @@ const dom = {
 
 let supabaseClient = null;
 let authSession = null;
+let authInitialized = false;
 let profileAuthMode = "signup";
 let profileModalRequired = false;
 let remoteSessionIds = new Set();
 let remoteSyncTimer = null;
 let appState = loadState();
+let preferAccountLogin = appState.profile?.provider === "email";
 let currentView = "dashboard";
 let toastTimer;
 let adminAuthenticated = readAdminSession();
@@ -164,10 +166,16 @@ function authAvailable() {
   return Boolean(supabaseClient);
 }
 
+function authenticatedProfileReady(profile = currentProfile(), user = currentAuthUser()) {
+  return Boolean(profile && user && profile.provider === "email" && profile.id === user.id);
+}
+
 function profileFromAuthUser(user, row = null, nickname = "") {
   if (!user?.id) return null;
   const metadata = user.user_metadata || {};
-  const fallbackNickname = nickname || metadata.nickname || currentProfile()?.nickname || user.email?.split("@")[0] || "Thành viên";
+  const storedProfile = currentProfile();
+  const storedNickname = storedProfile?.id === user.id ? storedProfile.nickname : "";
+  const fallbackNickname = nickname || metadata.nickname || storedNickname || user.email?.split("@")[0] || "Thành viên";
   return normalizeProfile({
     id: user.id,
     nickname: row?.nickname || fallbackNickname,
@@ -367,12 +375,13 @@ function getSupabaseConfig() {
 
 function renderProfileControl() {
   const profile = currentProfile();
+  const checkingAuth = authAvailable() && (!authInitialized || (currentAuthUser() && !authenticatedProfileReady(profile)));
   dom.profileAvatar.textContent = profile ? initials(profile.nickname) : "?";
   dom.profileAvatar.style.background = profile?.color || "#a9b3ac";
   dom.profileName.textContent = profile?.nickname || "Chọn nickname";
   dom.profileStatus.textContent = profile
-    ? (isGlobalAdmin() ? "ADMIN đã đăng nhập" : currentAuthUser()?.email || "Nickname đã lưu")
-    : "Chưa thiết lập";
+    ? (isGlobalAdmin() ? "ADMIN đã đăng nhập" : checkingAuth ? "Đang kiểm tra đăng nhập..." : currentAuthUser()?.email || "Nickname đã lưu")
+    : checkingAuth ? "Đang kiểm tra đăng nhập..." : "Chưa thiết lập";
 }
 
 function renderAdminControl() {
@@ -385,25 +394,46 @@ function renderAdminControl() {
 function setProfileAuthMode(mode) {
   const profile = currentProfile();
   const authenticated = Boolean(currentAuthUser());
-  profileAuthMode = authenticated ? "profile" : authAvailable() ? (mode === "login" ? "login" : "signup") : "local";
+  const checkingAuth = authAvailable() && (!authInitialized || (authenticated && !authenticatedProfileReady(profile)));
+  const signedOutMode = mode === "login" || mode === "signup" ? mode : preferAccountLogin ? "login" : "signup";
+  profileAuthMode = checkingAuth
+      ? "loading"
+      : authenticated
+        ? "profile"
+        : authAvailable()
+          ? signedOutMode
+          : "local";
   const isSignup = profileAuthMode === "signup";
   const isLogin = profileAuthMode === "login";
   const isProfile = profileAuthMode === "profile";
   const isLocal = profileAuthMode === "local";
+  const isLoading = profileAuthMode === "loading";
   const showAuthFields = isSignup || isLogin;
 
-  dom.profileAuthMode.hidden = isLocal || isProfile;
+  dom.profileAuthHint.classList.remove("is-error");
+  dom.profileAuthHint.classList.toggle("is-loading", isLoading);
+  dom.profileAuthMode.hidden = isLocal || isProfile || isLoading;
   dom.profileEmailField.hidden = !showAuthFields;
   dom.profilePasswordField.hidden = !showAuthFields;
-  dom.profileNicknameField.hidden = isLogin;
+  dom.profileNicknameField.hidden = isLogin || isLoading;
   dom.profileSignOutBtn.hidden = !isProfile;
+  dom.profileSubmitBtn.hidden = isLoading;
+  dom.profileForm.setAttribute("aria-busy", String(isLoading));
   dom.profileEmailInput.required = showAuthFields;
   dom.profilePasswordInput.required = showAuthFields;
-  dom.profileNicknameInput.required = !isLogin;
+  dom.profileNicknameInput.required = !isLogin && !isLoading;
   dom.profilePasswordInput.autocomplete = isLogin ? "current-password" : "new-password";
-  dom.profileModeButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.profileMode === profileAuthMode));
+  dom.profileModeButtons.forEach((button) => {
+    const selected = button.dataset.profileMode === profileAuthMode;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", String(selected));
+  });
 
-  if (isSignup) {
+  if (isLoading) {
+    dom.profileModalTitle.textContent = "Đang kiểm tra tài khoản";
+    dom.profileModalIntro.textContent = "Ứng dụng đang khôi phục phiên đăng nhập đã lưu trên thiết bị này.";
+    dom.profileAuthHint.textContent = "Vui lòng chờ trong giây lát...";
+  } else if (isSignup) {
     dom.profileModalTitle.textContent = "Tạo tài khoản để dùng lâu dài";
     dom.profileModalIntro.textContent = "Dùng email và mật khẩu để giữ nickname, quyền tham gia và lịch sử trên mọi thiết bị.";
     dom.profileAuthHint.textContent = "Sau khi tạo, bạn có thể đăng nhập lại từ bất kỳ thiết bị nào.";
@@ -425,7 +455,9 @@ function setProfileAuthMode(mode) {
     dom.profileSubmitBtn.textContent = "Lưu nickname →";
   }
   dom.profileEmailInput.value = currentAuthUser()?.email || dom.profileEmailInput.value || "";
-  dom.profileEmailInput.disabled = isProfile;
+  dom.profileEmailInput.disabled = isProfile || isLoading;
+  dom.profilePasswordInput.disabled = isProfile || isLoading;
+  dom.profileNicknameInput.disabled = isLoading;
   dom.profilePasswordInput.value = "";
   dom.profileNicknameInput.value = profile?.nickname || dom.profileNicknameInput.value || "";
   dom.profileCancelBtn.hidden = !profile || profileModalRequired;
@@ -437,11 +469,21 @@ function renderProfileModal() {
 
 function openProfileModal(required = !currentProfile()) {
   profileModalRequired = required;
-  profileAuthMode = currentAuthUser() ? "profile" : authAvailable() ? "signup" : "local";
+  const profile = currentProfile();
+  const checkingAuth = authAvailable() && (!authInitialized || (currentAuthUser() && !authenticatedProfileReady(profile)));
+  profileAuthMode = checkingAuth
+      ? "loading"
+      : currentAuthUser()
+        ? "profile"
+        : authAvailable()
+          ? (profile?.provider === "email" || preferAccountLogin ? "login" : "signup")
+          : "local";
   renderProfileModal();
   dom.profileModal.hidden = false;
   dom.profileModal.setAttribute("aria-hidden", "false");
-  setTimeout(() => (dom.profileAuthMode.hidden ? dom.profileNicknameInput : dom.profileEmailInput).focus(), 20);
+  if (profileAuthMode !== "loading") {
+    setTimeout(() => (profileAuthMode === "profile" || profileAuthMode === "local" ? dom.profileNicknameInput : dom.profileEmailInput).focus(), 20);
+  }
 }
 
 function closeProfileModal() {
@@ -537,7 +579,9 @@ async function tryUpsertRemoteProfile(profile, user = currentAuthUser()) {
 
 async function hydrateAuthenticatedProfile(user, nicknameFallback = "") {
   if (!supabaseClient || !user) return null;
-  const previous = currentProfile();
+  const keepProfileModalOpen = !dom.profileModal.hidden && !profileModalRequired;
+  const storedProfile = currentProfile();
+  const previous = storedProfile && (storedProfile.provider !== "email" || storedProfile.id === user.id) ? storedProfile : null;
   let row = null;
   let profileError = null;
   const result = await supabaseClient.from(PROFILES_TABLE).select("id, nickname, color, provider, avatar_url, updated_at").eq("id", user.id).maybeSingle();
@@ -547,10 +591,15 @@ async function hydrateAuthenticatedProfile(user, nicknameFallback = "") {
 
   const profile = profileFromAuthUser(user, row, nicknameFallback);
   if (!profile) return null;
+  preferAccountLogin = true;
   applyProfile(profile, previous);
+  if (keepProfileModalOpen) {
+    profileAuthMode = "profile";
+    renderProfileModal();
+  }
   if (!row) await tryUpsertRemoteProfile(profile, user);
-  if (!dom.profileModal.hidden) closeProfileModal();
-  renderProfileModal();
+  if (!dom.profileModal.hidden && profileModalRequired) closeProfileModal();
+  else if (!dom.profileModal.hidden) renderProfileModal();
   return profile;
 }
 
@@ -562,6 +611,7 @@ function saveLocalProfile(nickname) {
     color: previous?.color || colorForIdentity(nickname),
     provider: "nickname"
   });
+  preferAccountLogin = false;
   applyProfile(profile, previous);
   closeProfileModal();
   showToast("Đã lưu nickname trên thiết bị này.");
@@ -589,6 +639,7 @@ async function registerProfile() {
   }
   authSession = data.session;
   await hydrateAuthenticatedProfile(data.user, nickname);
+  closeProfileModal();
   showToast("Đã tạo tài khoản và lưu nickname.");
 }
 
@@ -601,6 +652,7 @@ async function loginProfile() {
   if (error) throw error;
   authSession = data.session;
   await hydrateAuthenticatedProfile(data.user);
+  closeProfileModal();
   showToast("Đăng nhập thành công.");
 }
 
@@ -622,6 +674,7 @@ async function saveAuthenticatedProfile() {
 
 async function saveProfile(event) {
   event.preventDefault();
+  if (profileAuthMode === "loading") return;
   if (profileAuthMode === "local") {
     const nickname = dom.profileNicknameInput.value.trim();
     if (!nickname) return showToast("Hãy nhập nickname để tiếp tục.");
@@ -733,18 +786,31 @@ function subscribeToRemoteSessions() {
     });
 }
 
+function clearStaleEmailProfile() {
+  const profile = currentProfile();
+  if (!profile || profile.provider !== "email") return false;
+  preferAccountLogin = true;
+  appState.profile = null;
+  appState.selectedMemberId = null;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+  } catch (error) {
+    console.warn("Không thể xóa hồ sơ đăng nhập cũ trên trình duyệt", error);
+  }
+  return true;
+}
+
 function handleAuthStateChange(event, session) {
   authSession = session;
+  if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT"].includes(event)) authInitialized = true;
   if (session?.user) {
     setTimeout(() => {
       hydrateAuthenticatedProfile(session.user).catch((error) => console.error("Không thể tải hồ sơ đăng nhập", error));
     }, 0);
     return;
   }
-  if (event !== "SIGNED_OUT") return;
-  appState.profile = null;
-  appState.selectedMemberId = null;
-  saveState();
+  if (event !== "SIGNED_OUT" && event !== "INITIAL_SESSION") return;
+  clearStaleEmailProfile();
   renderAll();
   if (!dom.profileModal.hidden) {
     profileAuthMode = authAvailable() ? "login" : "local";
@@ -755,7 +821,9 @@ function handleAuthStateChange(event, session) {
 async function initializeSupabase() {
   const config = getSupabaseConfig();
   if (!config) {
+    authInitialized = true;
     setConnectionNote("Dữ liệu trên trình duyệt · chưa kết nối Supabase");
+    if (!dom.profileModal.hidden) renderProfileModal();
     if (!currentProfile()) openProfileModal(true);
     return;
   }
@@ -765,7 +833,9 @@ async function initializeSupabase() {
     const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
     if (sessionError) throw sessionError;
     authSession = sessionData.session;
+    authInitialized = true;
     supabaseClient.auth.onAuthStateChange((event, session) => handleAuthStateChange(event, session));
+    if (!authSession?.user) clearStaleEmailProfile();
     await loadRemoteSessions();
     if (authSession?.user) await hydrateAuthenticatedProfile(authSession.user);
     subscribeToRemoteSessions();
@@ -774,10 +844,12 @@ async function initializeSupabase() {
     if (!currentProfile()) openProfileModal(true);
   } catch (error) {
     console.error("Không thể khởi tạo Supabase", error);
+    authInitialized = true;
     supabaseClient = null;
     authSession = null;
     setConnectionNote("Không kết nối được Supabase");
     showToast("Supabase chưa sẵn sàng. Hãy chạy schema SQL và kiểm tra lại cấu hình.");
+    if (!dom.profileModal.hidden) renderProfileModal();
     if (!currentProfile()) openProfileModal(true);
   }
 }

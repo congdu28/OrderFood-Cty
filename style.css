@@ -127,6 +127,10 @@ h3 { font-size: 17px; margin-bottom: 0; letter-spacing: -.5px; }
 /* Hồ sơ và trạng thái phiên */
 .profile-modal-card { max-width: 420px; }
 .profile-helper { color: var(--muted); font-size: 13px; line-height: 1.55; margin: -2px 0 2px; }
+.profile-helper.is-loading { display: flex; align-items: center; gap: 9px; color: #2e6f4c; }
+.profile-helper.is-loading::before { width: 14px; height: 14px; flex: 0 0 auto; content: ""; border: 2px solid #bdd9c7; border-top-color: #278653; border-radius: 50%; animation: profile-loading-spin .7s linear infinite; }
+@keyframes profile-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .profile-helper.is-loading::before { animation: none; border-top-color: #bdd9c7; background: #278653; } }
 .order-confirm-bar { display: flex; align-items: center; gap: 12px; padding: 12px; margin: 0 0 15px; border-radius: 12px; background: #f4f7f4; border: 1px solid #dbe6dc; }
 .order-confirm-bar .primary-button { font-size: 13px; padding: 11px 14px; white-space: nowrap; }
 .order-confirm-bar .primary-button:disabled { background: #b8c2bb; box-shadow: none; cursor: not-allowed; transform: none; }
