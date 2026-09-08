@@ -16,6 +16,9 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const dom = {
   sidebar: $(".sidebar"),
+  mobileMenuBtn: $("#mobileMenuBtn"),
+  mobileSidebarCloseBtn: $("#mobileSidebarCloseBtn"),
+  sidebarScrim: $("#sidebarScrim"),
   connectionNote: $("#connectionNote"),
   pageTitle: $("#pageTitle"),
   todayLabel: $("#todayLabel"),
@@ -986,15 +989,35 @@ function showToast(message) {
   toastTimer = setTimeout(() => dom.toast.classList.remove("show"), 2500);
 }
 
+function setMobileSidebar(open, restoreFocus = false) {
+  const isMobile = window.matchMedia("(max-width: 560px)").matches;
+  const wasOpen = dom.sidebar.classList.contains("mobile-open");
+  const shouldOpen = isMobile && Boolean(open);
+  dom.sidebar.classList.toggle("mobile-open", shouldOpen);
+  dom.sidebarScrim.hidden = !shouldOpen;
+  dom.mobileMenuBtn.setAttribute("aria-expanded", String(shouldOpen));
+  dom.mobileMenuBtn.setAttribute("aria-label", shouldOpen ? "Đóng menu" : "Mở menu");
+  document.body.classList.toggle("mobile-menu-open", shouldOpen);
+  if (isMobile) dom.sidebar.setAttribute("aria-hidden", String(!shouldOpen));
+  else dom.sidebar.removeAttribute("aria-hidden");
+  if (shouldOpen) setTimeout(() => dom.mobileSidebarCloseBtn.focus(), 20);
+  else if (restoreFocus && wasOpen) dom.mobileMenuBtn.focus();
+}
+
 function setView(view) {
+  const viewChanged = currentView !== view;
   currentView = view;
   $$(".view").forEach((section) => section.classList.toggle("is-active", section.id === `${view}View`));
   $$(".nav-link").forEach((button) => button.classList.toggle("is-active", button.dataset.viewTarget === view || (view === "session" && button.dataset.sessionStatus === currentSessionFilter())));
   const titles = { dashboard: "Ăn trưa thật gọn", session: "Phiên đặt đồ", history: "Lịch sử đơn ăn" };
   dom.pageTitle.textContent = view === "session" ? sessionFilterLabel() : titles[view];
-  dom.sidebar.classList.remove("mobile-open");
+  setMobileSidebar(false, true);
   if (view === "session") renderSession();
   if (view === "history") renderHistory();
+  if (viewChanged) {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
 }
 
 function showSessionsByStatus(status) {
@@ -1595,8 +1618,12 @@ function bindEvents() {
       return;
     }
     const viewButton = event.target.closest("[data-view-target]");
-    if (viewButton) setView(viewButton.dataset.viewTarget);
+    if (viewButton) {
+      event.preventDefault();
+      setView(viewButton.dataset.viewTarget);
+    }
     if (event.target.closest("[data-open-modal]")) openNewSessionModal();
+    if (event.target.closest(".sidebar button, .sidebar a")) setMobileSidebar(false);
   });
   $("#newSessionBtn").addEventListener("click", openNewSessionModal);
   dom.heroCreateBtn.addEventListener("click", () => {
@@ -1624,6 +1651,11 @@ function bindEvents() {
   dom.closeAdminModalBtn.addEventListener("click", closeAdminLoginModal);
   dom.adminModal.addEventListener("click", (event) => { if (event.target === dom.adminModal) closeAdminLoginModal(); });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && dom.sidebar.classList.contains("mobile-open")) {
+      event.preventDefault();
+      setMobileSidebar(false, true);
+      return;
+    }
     if (event.key === "Escape" && !dom.sessionModal.hidden) closeNewSessionModal();
     if (event.key === "Escape" && !dom.profileModal.hidden) closeProfileModal();
     if (event.key === "Escape" && !dom.adminModal.hidden) closeAdminLoginModal();
@@ -1644,7 +1676,12 @@ function bindEvents() {
     const button = event.target.closest("[data-suggest-menu]");
     if (button) addSuggestedMenu(button.dataset.suggestMenu);
   });
-  $("#mobileMenuBtn").addEventListener("click", () => dom.sidebar.classList.toggle("mobile-open"));
+  dom.mobileMenuBtn.addEventListener("click", () => setMobileSidebar(!dom.sidebar.classList.contains("mobile-open")));
+  dom.mobileSidebarCloseBtn.addEventListener("click", () => setMobileSidebar(false, true));
+  dom.sidebarScrim.addEventListener("click", () => setMobileSidebar(false, true));
+  window.addEventListener("resize", () => {
+    if (!window.matchMedia("(max-width: 560px)").matches) setMobileSidebar(false);
+  });
 
   dom.sessionSwitcher.addEventListener("change", () => {
     appState.activeSessionId = dom.sessionSwitcher.value;
@@ -1864,5 +1901,6 @@ function bindEvents() {
 }
 
 bindEvents();
+setMobileSidebar(false);
 renderAll();
 initializeSupabase();

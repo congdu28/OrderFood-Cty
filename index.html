@@ -23,8 +23,11 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Điều hướng chính">
-        <a class="brand" href="#dashboard" aria-label="Ăn Chung - trang chủ">
+      <aside class="sidebar" id="appSidebar" aria-label="Điều hướng chính">
+        <button class="mobile-sidebar-close" id="mobileSidebarCloseBtn" type="button" aria-label="Đóng menu và quay lại nội dung">
+          <span aria-hidden="true">←</span> Quay lại
+        </button>
+        <a class="brand" href="#dashboard" data-view-target="dashboard" aria-label="Ăn Chung - trang chủ">
           <span class="brand-mark">F</span>
           <span>Đặt Đồ Ăn<small>Pancake Thanh Hóa</small></span>
         </a>
@@ -63,9 +66,11 @@
         </div>
       </aside>
 
+      <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Đóng menu" hidden></button>
+
       <main class="main-content">
         <header class="topbar">
-          <button class="mobile-menu" id="mobileMenuBtn" aria-label="Mở menu">☰</button>
+          <button class="mobile-menu" id="mobileMenuBtn" type="button" aria-label="Mở menu" aria-controls="appSidebar" aria-expanded="false">☰</button>
           <div>
             <p class="eyebrow" id="todayLabel">Hôm nay</p>
             <h1 id="pageTitle">Ăn trưa thật ngon</h1>
